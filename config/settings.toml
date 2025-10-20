@@ -1,0 +1,41 @@
+[application]
+name = "CloudCall Transcription"
+version = "1.0.0"
+organization = "CloudCall"
+
+[paths]
+# Application data directory (default: ~/.cloudcall)
+# app_dir = "C:\\Users\\YourUser\\.cloudcall"
+
+[transcription]
+# Whisper model: tiny, base, small, medium, large-v2, large-v3
+whisper_model = "base"
+compute_type = "float16"  # float16, int8, float32
+batch_size = 16
+device = "cuda"  # cuda or cpu
+language = "auto"  # auto-detect or specific language code
+
+[audio]
+sample_rate = 48000
+channels = 2
+chunk_size = 512
+audio_format = "int16"
+
+[diarization]
+enabled = true
+min_speakers = 1
+max_speakers = 10
+# HuggingFace authentication token for Pyannote models
+# Get token from: https://huggingface.co/settings/tokens
+# Required for speaker diarization
+hf_token = ""
+
+[ui]
+theme = "auto"  # auto, light, dark
+window_width = 1000
+window_height = 700
+
+[logging]
+log_level = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+max_log_size_mb = 10
+backup_count = 5
