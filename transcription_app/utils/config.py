@@ -22,6 +22,10 @@ class AppConfig(BaseSettings):
         default_factory=lambda: Path.home() / '.cloudcall' / 'models',
         description="Models storage directory"
     )
+    recordings_dir: Path = Field(
+        default_factory=lambda: Path.home() / '.cloudcall' / 'recordings',
+        description="Audio recordings storage directory"
+    )
 
     # Transcription settings
     whisper_model: str = Field(
@@ -144,6 +148,7 @@ class AppConfig(BaseSettings):
         # Ensure directories exist
         self.app_dir.mkdir(parents=True, exist_ok=True)
         self.models_dir.mkdir(parents=True, exist_ok=True)
+        self.recordings_dir.mkdir(parents=True, exist_ok=True)
 
         # Convert log file path to absolute if relative
         if not self.log_file.is_absolute():

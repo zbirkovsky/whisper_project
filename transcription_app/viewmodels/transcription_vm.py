@@ -132,7 +132,7 @@ class TranscriptionViewModel(QObject):
         )
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = self.engine.config.app_dir / f"recording_{timestamp}.wav"
+        output_file = self.engine.config.recordings_dir / f"recording_{timestamp}.wav"
 
         mic_index = self.recorder.get_default_microphone() if record_mic else None
         loopback_index = self.recorder.get_loopback_device() if record_system else None

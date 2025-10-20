@@ -6,6 +6,8 @@ organization = "CloudCall"
 [paths]
 # Application data directory (default: ~/.cloudcall)
 # app_dir = "C:\\Users\\YourUser\\.cloudcall"
+# Audio recordings directory (default: ~/.cloudcall/recordings)
+# recordings_dir = "C:\\Users\\YourUser\\.cloudcall\\recordings"
 
 [transcription]
 # Whisper model: tiny, base, small, medium, large-v2, large-v3

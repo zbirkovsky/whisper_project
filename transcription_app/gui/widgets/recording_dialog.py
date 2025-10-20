@@ -182,9 +182,29 @@ class RecordingDialog(QDialog):
 
         layout.addLayout(button_layout)
 
-        # Close button
-        close_layout = QHBoxLayout()
-        close_layout.addStretch()
+        # Bottom buttons
+        bottom_layout = QHBoxLayout()
+
+        open_folder_btn = QPushButton("📁 Open Recordings Folder")
+        open_folder_btn.setMinimumWidth(180)
+        open_folder_btn.clicked.connect(self.open_recordings_folder)
+        open_folder_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0078d4;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #106ebe;
+            }
+        """)
+        bottom_layout.addWidget(open_folder_btn)
+
+        bottom_layout.addStretch()
+
         close_btn = QPushButton("Close")
         close_btn.setMinimumWidth(100)
         close_btn.clicked.connect(self.close)
@@ -201,8 +221,8 @@ class RecordingDialog(QDialog):
                 background-color: #5a6268;
             }
         """)
-        close_layout.addWidget(close_btn)
-        layout.addLayout(close_layout)
+        bottom_layout.addWidget(close_btn)
+        layout.addLayout(bottom_layout)
 
     def connect_signals(self):
         """Connect ViewModel signals"""
@@ -340,6 +360,26 @@ class RecordingDialog(QDialog):
         self.is_paused = False
         self.elapsed_time = 0
         self.pause_btn.setText("⏸ Pause")
+
+    def open_recordings_folder(self):
+        """Open the recordings folder in file explorer"""
+        import subprocess
+        import platform
+        from pathlib import Path
+
+        # Get recordings directory from viewmodel's config
+        recordings_dir = self.viewmodel.engine.config.recordings_dir
+
+        # Ensure directory exists
+        recordings_dir.mkdir(parents=True, exist_ok=True)
+
+        # Open in file explorer based on platform
+        if platform.system() == "Windows":
+            subprocess.Popen(['explorer', str(recordings_dir)])
+        elif platform.system() == "Darwin":  # macOS
+            subprocess.Popen(['open', str(recordings_dir)])
+        else:  # Linux
+            subprocess.Popen(['xdg-open', str(recordings_dir)])
 
     def closeEvent(self, event):
         """Handle dialog close"""

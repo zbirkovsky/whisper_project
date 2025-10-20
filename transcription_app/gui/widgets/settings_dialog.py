@@ -205,6 +205,18 @@ class SettingsDialog(QDialog):
 
         paths_layout.addRow("Models Directory:", models_layout)
 
+        # Recordings directory
+        recordings_layout = QHBoxLayout()
+        self.recordings_dir_edit = QLineEdit()
+        self.recordings_dir_edit.setText(str(self.config.recordings_dir))
+        recordings_layout.addWidget(self.recordings_dir_edit)
+
+        browse_recordings_btn = QPushButton("Browse...")
+        browse_recordings_btn.clicked.connect(self.browse_recordings_dir)
+        recordings_layout.addWidget(browse_recordings_btn)
+
+        paths_layout.addRow("Recordings Directory:", recordings_layout)
+
         layout.addWidget(paths_group)
 
         # Logging group
@@ -292,6 +304,7 @@ class SettingsDialog(QDialog):
 
             # Advanced
             "models_dir": self.models_dir_edit.text(),
+            "recordings_dir": self.recordings_dir_edit.text(),
             "log_level": self.log_level_combo.currentText(),
             "max_log_size_mb": self.log_size_spin.value(),
         }
@@ -305,6 +318,16 @@ class SettingsDialog(QDialog):
         )
         if directory:
             self.models_dir_edit.setText(directory)
+
+    def browse_recordings_dir(self):
+        """Browse for recordings directory"""
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select Recordings Directory",
+            str(self.config.recordings_dir)
+        )
+        if directory:
+            self.recordings_dir_edit.setText(directory)
 
     def apply_settings(self):
         """Apply settings without closing"""
