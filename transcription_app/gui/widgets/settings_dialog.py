@@ -217,6 +217,18 @@ class SettingsDialog(QDialog):
 
         paths_layout.addRow("Recordings Directory:", recordings_layout)
 
+        # Transcripts directory
+        transcripts_layout = QHBoxLayout()
+        self.transcripts_dir_edit = QLineEdit()
+        self.transcripts_dir_edit.setText(str(self.config.transcripts_dir))
+        transcripts_layout.addWidget(self.transcripts_dir_edit)
+
+        browse_transcripts_btn = QPushButton("Browse...")
+        browse_transcripts_btn.clicked.connect(self.browse_transcripts_dir)
+        transcripts_layout.addWidget(browse_transcripts_btn)
+
+        paths_layout.addRow("Transcripts Directory:", transcripts_layout)
+
         layout.addWidget(paths_group)
 
         # Logging group
@@ -305,6 +317,7 @@ class SettingsDialog(QDialog):
             # Advanced
             "models_dir": self.models_dir_edit.text(),
             "recordings_dir": self.recordings_dir_edit.text(),
+            "transcripts_dir": self.transcripts_dir_edit.text(),
             "log_level": self.log_level_combo.currentText(),
             "max_log_size_mb": self.log_size_spin.value(),
         }
@@ -329,12 +342,24 @@ class SettingsDialog(QDialog):
         if directory:
             self.recordings_dir_edit.setText(directory)
 
+    def browse_transcripts_dir(self):
+        """Browse for transcripts directory"""
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select Transcripts Directory",
+            str(self.config.transcripts_dir)
+        )
+        if directory:
+            self.transcripts_dir_edit.setText(directory)
+
     def apply_settings(self):
-        """Apply settings without closing"""
+        """Apply settings and close"""
         self.settings = self.get_settings()
         self.settings_changed.emit(self.settings)
+        self.accept()  # Close the dialog after applying
 
     def save_settings(self):
         """Save settings and close"""
-        self.apply_settings()
+        self.settings = self.get_settings()
+        self.settings_changed.emit(self.settings)
         self.accept()

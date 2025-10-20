@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Slot, Qt, QTimer, QTime
 
 from transcription_app.integrations.teams_detector import detect_teams_meeting, is_teams_running
-from transcription_app.gui.widgets.recording_overlay import RecordingOverlay
 from transcription_app.utils.language_detector import detect_language_from_teams_meeting
 
 
@@ -25,13 +24,6 @@ class RecordingDialog(QDialog):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_timer)
         self.selected_language = "auto"  # Track language for recorded file transcription
-
-        # Create overlay widget (hidden by default)
-        self.overlay = RecordingOverlay()
-        self.overlay.pause_clicked.connect(self.pause_recording)
-        self.overlay.stop_clicked.connect(self.stop_recording)
-        self.overlay.minimize_clicked.connect(self.show_dialog_from_overlay)
-        self.overlay.hide()
 
         self.setup_ui()
         self.connect_signals()
@@ -356,27 +348,6 @@ class RecordingDialog(QDialog):
         """)
         bottom_layout.addWidget(open_folder_btn)
 
-        # Overlay mode button (only visible when recording)
-        self.overlay_btn = QPushButton("🎯 Overlay Mode")
-        self.overlay_btn.setMinimumWidth(130)
-        self.overlay_btn.setToolTip("Switch to compact overlay (stays on top)")
-        self.overlay_btn.clicked.connect(self.switch_to_overlay)
-        self.overlay_btn.setVisible(False)  # Hidden initially
-        self.overlay_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #6f42c1;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #5a32a3;
-            }
-        """)
-        bottom_layout.addWidget(self.overlay_btn)
-
         bottom_layout.addStretch()
 
         close_btn = QPushButton("Close")
@@ -438,9 +409,6 @@ class RecordingDialog(QDialog):
 
         # Start timer
         self.timer.start(1000)  # Update every second
-
-        # Show overlay button when recording
-        self.overlay_btn.setVisible(True)
 
         # Get meeting name for filename
         meeting_name = self.get_meeting_name()
@@ -537,13 +505,6 @@ class RecordingDialog(QDialog):
         self.status_label.setStyleSheet("color: #6c757d; font-size: 14px; font-weight: 500;")
         self.recording_indicator.setVisible(False)
 
-        # Hide overlay button
-        self.overlay_btn.setVisible(False)
-
-        # Stop and hide overlay if active
-        self.overlay.stop_recording()
-        self.overlay.hide()
-
         self.is_recording = False
         self.is_paused = False
         self.elapsed_time = 0
@@ -631,50 +592,8 @@ class RecordingDialog(QDialog):
         else:  # Linux
             subprocess.Popen(['xdg-open', str(recordings_dir)])
 
-    def switch_to_overlay(self):
-        """Switch from dialog to compact overlay mode"""
-        if not self.is_recording:
-            return
-
-        # Sync timer state with overlay
-        self.overlay.elapsed_time = self.elapsed_time
-        self.overlay.is_paused = self.is_paused
-
-        # Show overlay and hide dialog
-        self.overlay.start_recording()
-        self.overlay.show()
-        self.hide()
-
-    def show_dialog_from_overlay(self):
-        """Switch from overlay back to dialog"""
-        # Sync timer state from overlay
-        self.elapsed_time = self.overlay.elapsed_time
-        self.is_paused = self.overlay.is_paused
-
-        # Update dialog timer display
-        time = QTime(0, 0, 0).addSecs(self.elapsed_time)
-        self.timer_label.setText(time.toString("HH:mm:ss"))
-
-        # Update pause button state
-        if self.is_paused:
-            self.pause_btn.setText("▶ Resume")
-            self.status_label.setText("⏸ Paused")
-            self.status_label.setStyleSheet("color: #ffc107; font-weight: bold; font-size: 14px;")
-        else:
-            self.pause_btn.setText("⏸ Pause")
-            self.status_label.setText("🔴 Recording...")
-            self.status_label.setStyleSheet("color: #dc3545; font-weight: bold; font-size: 14px;")
-
-        # Hide overlay and show dialog
-        self.overlay.hide()
-        self.show()
-
     def closeEvent(self, event):
         """Handle dialog close"""
-        # Close overlay if open
-        if self.overlay.isVisible():
-            self.overlay.close()
-
         if self.is_recording:
             self.stop_recording()
         event.accept()

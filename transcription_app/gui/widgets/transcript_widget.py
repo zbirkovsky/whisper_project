@@ -119,16 +119,50 @@ class TranscriptWidget(QWidget):
         self.search_input.returnPressed.connect(self.find_next)
         search_layout.addWidget(self.search_input)
 
-        self.search_prev_btn = QPushButton("◄")
-        self.search_prev_btn.setFixedWidth(30)
+        self.search_prev_btn = QPushButton("Prev")
+        self.search_prev_btn.setFixedWidth(50)
         self.search_prev_btn.setToolTip("Previous match")
         self.search_prev_btn.clicked.connect(self.find_previous)
+        self.search_prev_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f3f3f3;
+                color: #333;
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #e6e6e6;
+                border-color: #adadad;
+            }
+            QPushButton:pressed {
+                background-color: #d4d4d4;
+            }
+        """)
         search_layout.addWidget(self.search_prev_btn)
 
-        self.search_next_btn = QPushButton("►")
-        self.search_next_btn.setFixedWidth(30)
+        self.search_next_btn = QPushButton("Next")
+        self.search_next_btn.setFixedWidth(50)
         self.search_next_btn.setToolTip("Next match")
         self.search_next_btn.clicked.connect(self.find_next)
+        self.search_next_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f3f3f3;
+                color: #333;
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #e6e6e6;
+                border-color: #adadad;
+            }
+            QPushButton:pressed {
+                background-color: #d4d4d4;
+            }
+        """)
         search_layout.addWidget(self.search_next_btn)
 
         self.search_count_label = QLabel("")

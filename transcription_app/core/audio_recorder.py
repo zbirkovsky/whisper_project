@@ -135,6 +135,7 @@ class RecordingWorker(QThread):
         self.mic_index = mic_index
         self.loopback_index = loopback_index
         self.is_cancelled = False
+        self.streams = []  # Keep reference to streams for cancellation
 
         logger.info(
             f"RecordingWorker initialized: duration={duration}s, "
@@ -147,7 +148,7 @@ class RecordingWorker(QThread):
 
         try:
             # Open streams
-            streams = []
+            self.streams = []
 
             if self.record_system and self.loopback_index is not None:
                 logger.info(f"Opening system audio stream (device {self.loopback_index})")
@@ -159,7 +160,7 @@ class RecordingWorker(QThread):
                     frames_per_buffer=self.config.chunk_size,
                     input_device_index=self.loopback_index
                 )
-                streams.append(('system', stream_sys, 2))
+                self.streams.append(('system', stream_sys, 2))
 
             if self.record_mic and self.mic_index is not None:
                 logger.info(f"Opening microphone stream (device {self.mic_index})")
@@ -171,13 +172,13 @@ class RecordingWorker(QThread):
                     frames_per_buffer=self.config.chunk_size,
                     input_device_index=self.mic_index
                 )
-                streams.append(('mic', stream_mic, 1))
+                self.streams.append(('mic', stream_mic, 1))
 
-            if not streams:
+            if not self.streams:
                 raise ValueError("No audio streams available")
 
             # Record audio
-            frames = {name: [] for name, _, _ in streams}
+            frames = {name: [] for name, _, _ in self.streams}
             num_chunks = int(
                 self.config.sample_rate / self.config.chunk_size * self.duration
             )
@@ -185,36 +186,40 @@ class RecordingWorker(QThread):
             logger.info(f"Starting recording for {self.duration} seconds ({num_chunks} chunks)")
 
             chunks_recorded = 0
-            while chunks_recorded < num_chunks and not self.is_cancelled:
-                # Read from all streams for this chunk
-                chunk_success = False
-                for name, stream, channels in streams:
-                    try:
-                        # Read one chunk of audio data
-                        data = stream.read(
-                            self.config.chunk_size,
-                            exception_on_overflow=False
-                        )
-                        frames[name].append(data)
-                        chunk_success = True
-                    except Exception as e:
-                        logger.warning(f"Error reading from {name} stream: {e}")
-                        # Continue recording even if one stream fails
-                        continue
+            try:
+                while chunks_recorded < num_chunks and not self.is_cancelled:
+                    # Read from all streams for this chunk
+                    chunk_success = False
+                    for name, stream, channels in self.streams:
+                        try:
+                            # Read one chunk of audio data
+                            data = stream.read(
+                                self.config.chunk_size,
+                                exception_on_overflow=False
+                            )
+                            frames[name].append(data)
+                            chunk_success = True
+                        except Exception as e:
+                            logger.warning(f"Error reading from {name} stream: {e}")
+                            # Continue recording even if one stream fails
+                            continue
 
-                if chunk_success:
-                    chunks_recorded += 1
+                    if chunk_success:
+                        chunks_recorded += 1
 
-                    # Update progress every 10 chunks to reduce overhead
-                    if chunks_recorded % 10 == 0:
-                        elapsed = chunks_recorded * self.config.chunk_size / self.config.sample_rate
-                        self.progress_updated.emit(elapsed)
-
-            logger.info(f"Recording loop finished after {chunks_recorded} chunks ({chunks_recorded * self.config.chunk_size / self.config.sample_rate:.2f} seconds), closing streams...")
+                        # Update progress every 10 chunks to reduce overhead
+                        if chunks_recorded % 10 == 0:
+                            elapsed = chunks_recorded * self.config.chunk_size / self.config.sample_rate
+                            self.progress_updated.emit(elapsed)
+            finally:
+                # CRITICAL: Close streams immediately when loop exits (cancelled or complete)
+                # This breaks out of any blocking stream.read() calls
+                logger.info(f"Recording loop finished after {chunks_recorded} chunks ({chunks_recorded * self.config.chunk_size / self.config.sample_rate:.2f} seconds), closing streams...")
             # Close streams
-            for name, stream, _ in streams:
+            for name, stream, _ in self.streams:
                 try:
-                    stream.stop_stream()
+                    if stream.is_active():
+                        stream.stop_stream()
                     stream.close()
                     logger.info(f"Closed {name} stream")
                 except Exception as e:
@@ -300,3 +305,12 @@ class RecordingWorker(QThread):
         """Cancel recording"""
         logger.info("Cancelling recording")
         self.is_cancelled = True
+
+        # CRITICAL: Stop streams immediately to break out of blocking stream.read()
+        logger.info(f"Stopping {len(self.streams)} audio streams to unblock read operations")
+        for name, stream, _ in self.streams:
+            try:
+                stream.stop_stream()
+                logger.info(f"Stopped {name} stream")
+            except Exception as e:
+                logger.warning(f"Error stopping {name} stream during cancellation: {e}")

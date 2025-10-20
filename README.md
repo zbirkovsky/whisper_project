@@ -263,7 +263,8 @@ cloudcall-transcription/
 │   │   └── model_manager.py    # Model management
 │   ├── gui/                    # User interface
 │   │   ├── main_window.py      # Main window
-│   │   └── widgets/            # UI widgets (file queue, recording, overlay)
+│   │   ├── styles/             # Centralized theme and styling
+│   │   └── widgets/            # UI widgets (file queue, recording dialog)
 │   ├── viewmodels/             # MVVM ViewModels
 │   │   └── transcription_vm.py
 │   ├── integrations/           # External integrations

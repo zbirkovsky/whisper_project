@@ -15,6 +15,7 @@ from transcription_app.gui.widgets.recording_dialog import RecordingDialog
 from transcription_app.gui.widgets.file_queue_widget import FileQueueWidget
 from transcription_app.gui.widgets.settings_dialog import SettingsDialog
 from transcription_app.gui.widgets.transcript_widget import TranscriptWidget
+from transcription_app.gui.styles import StyleSheetManager, Theme, get_icon_manager, AnimationHelper
 from transcription_app.core.transcription_engine import format_transcript_text, format_transcript_srt
 from transcription_app.utils.logger import get_logger
 
@@ -31,6 +32,8 @@ class MainWindow(QMainWindow):
         self.file_items = {}  # Maps file_id to QListWidgetItem
         self.file_progress = {}  # Maps file_id to QProgressBar
         self.current_result = None  # Store current transcription result
+        self.style_manager = StyleSheetManager(Theme.LIGHT)
+        self.icon_manager = get_icon_manager()
         self.setup_ui()
         self.connect_signals()
         logger.info("MainWindow initialized")
@@ -65,13 +68,14 @@ class MainWindow(QMainWindow):
         self.file_queue = FileQueueWidget()
         self.file_queue.cancel_file.connect(self.cancel_file)
         self.file_queue.remove_file.connect(self.remove_file)
+        self.file_queue.setMinimumHeight(320)  # Show at least 3 items
         splitter.addWidget(self.file_queue)
 
         # Transcript display - enhanced widget with syntax highlighting and search
         self.transcript_text = TranscriptWidget()
         splitter.addWidget(self.transcript_text)
 
-        splitter.setSizes([150, 200, 350])
+        splitter.setSizes([150, 320, 350])
         main_layout.addWidget(splitter)
 
         # Status bar
@@ -79,8 +83,8 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready - Drop audio files or click 'Open Files'")
 
-        # Apply stylesheet
-        self.setStyleSheet(self.get_fluent_stylesheet())
+        # Apply stylesheet from StyleSheet Manager
+        self.setStyleSheet(self.style_manager.get_stylesheet())
 
     def create_menu_bar(self):
         """Create menu bar with File/Edit/View/Help menus"""
@@ -196,34 +200,34 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        btn_open = QPushButton("Open Files")
+        btn_open = QPushButton(self.icon_manager.get_button_icon('folder-open'), " Open Files")
         btn_open.setToolTip("Select audio files to transcribe")
         btn_open.clicked.connect(self.open_files)
         layout.addWidget(btn_open)
 
-        btn_record = QPushButton("Record Audio")
+        btn_record = QPushButton(self.icon_manager.get_button_icon('record'), " Record Audio")
         btn_record.setToolTip("Record audio from microphone and/or system")
         btn_record.clicked.connect(self.start_recording)
         layout.addWidget(btn_record)
 
-        btn_save_txt = QPushButton("Save as TXT")
+        btn_save_txt = QPushButton(self.icon_manager.get_button_icon('text'), " Save as TXT")
         btn_save_txt.setToolTip("Save transcript as plain text")
         btn_save_txt.clicked.connect(lambda: self.save_transcript('txt'))
         layout.addWidget(btn_save_txt)
 
-        btn_save_srt = QPushButton("Save as SRT")
+        btn_save_srt = QPushButton(self.icon_manager.get_button_icon('subtitle'), " Save as SRT")
         btn_save_srt.setToolTip("Save transcript as SRT subtitle file")
         btn_save_srt.clicked.connect(lambda: self.save_transcript('srt'))
         layout.addWidget(btn_save_srt)
 
         layout.addStretch()
 
-        btn_clear = QPushButton("Clear")
+        btn_clear = QPushButton(self.icon_manager.get_button_icon('clear'), " Clear")
         btn_clear.setToolTip("Clear transcript display")
         btn_clear.clicked.connect(self.clear_transcript)
         layout.addWidget(btn_clear)
 
-        btn_settings = QPushButton("Settings")
+        btn_settings = QPushButton(self.icon_manager.get_button_icon('settings'), " Settings")
         btn_settings.setToolTip("Open settings dialog")
         btn_settings.clicked.connect(self.open_settings)
         layout.addWidget(btn_settings)
@@ -286,11 +290,31 @@ class MainWindow(QMainWindow):
         transcript_text = format_transcript_text(result, include_timestamps=True)
         self.transcript_text.set_text(transcript_text)
 
+        # Auto-save transcript to configured transcripts directory
+        try:
+            file_name = result.get('file_name', file_id)
+            base_name = Path(file_name).stem
+
+            # Save as TXT
+            txt_path = self.config.transcripts_dir / f"{base_name}_transcript.txt"
+            with open(txt_path, 'w', encoding='utf-8') as f:
+                f.write(transcript_text)
+            logger.info(f"Auto-saved transcript to: {txt_path}")
+
+            # Save as SRT
+            srt_path = self.config.transcripts_dir / f"{base_name}.srt"
+            srt_content = format_transcript_srt(result)
+            with open(srt_path, 'w', encoding='utf-8') as f:
+                f.write(srt_content)
+            logger.info(f"Auto-saved SRT to: {srt_path}")
+        except Exception as e:
+            logger.error(f"Failed to auto-save transcript: {e}")
+
         # Update status
         num_segments = len(result.get('segments', []))
         language = result.get('language', 'unknown')
         self.status_bar.showMessage(
-            f"Completed: {file_id} ({num_segments} segments, language: {language})"
+            f"Completed: {file_id} ({num_segments} segments, language: {language}) - Saved to {self.config.transcripts_dir}"
         )
 
     @Slot(str, str)
@@ -414,13 +438,15 @@ class MainWindow(QMainWindow):
 
     def apply_dark_mode(self):
         """Apply dark mode theme"""
-        self.setStyleSheet(self.get_dark_stylesheet())
+        self.style_manager.set_theme(Theme.DARK)
+        self.setStyleSheet(self.style_manager.get_stylesheet())
         self.status_bar.showMessage("Dark mode enabled")
         logger.info("Dark mode enabled")
 
     def apply_light_mode(self):
         """Apply light mode theme"""
-        self.setStyleSheet(self.get_fluent_stylesheet())
+        self.style_manager.set_theme(Theme.LIGHT)
+        self.setStyleSheet(self.style_manager.get_stylesheet())
         self.status_bar.showMessage("Light mode enabled")
         logger.info("Light mode enabled")
 
@@ -464,287 +490,13 @@ class MainWindow(QMainWindow):
 
         QMessageBox.about(self, "About CloudCall Transcription", about_text)
 
+    def showEvent(self, event):
+        """Handle window show event"""
+        super().showEvent(event)
+        logger.info("Main window shown")
+
     def closeEvent(self, event):
         """Handle window close event"""
         logger.info("Application closing")
         self.viewmodel.cleanup()
         event.accept()
-
-    def get_fluent_stylesheet(self):
-        """Fluent Design-inspired stylesheet"""
-        return """
-        QMainWindow {
-            background-color: #ffffff;
-        }
-        QPushButton {
-            background-color: #0078d4;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            padding: 10px 20px;
-            font-size: 14px;
-            font-weight: 600;
-            font-family: 'Segoe UI', Arial, sans-serif;
-        }
-        QPushButton:hover {
-            background-color: #106ebe;
-        }
-        QPushButton:pressed {
-            background-color: #005a9e;
-        }
-        QPushButton:disabled {
-            background-color: #cccccc;
-            color: #999999;
-        }
-        QTextEdit, QListWidget {
-            background-color: white;
-            border: 2px solid #e1e4e8;
-            border-radius: 6px;
-            padding: 10px;
-            font-family: 'Consolas', 'Courier New', monospace;
-        }
-        QTextEdit:focus, QListWidget:focus {
-            border: 2px solid #0078d4;
-        }
-        QListWidget::item {
-            padding: 8px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        QListWidget::item:selected {
-            background-color: #e8f4fc;
-            color: #000;
-        }
-        QStatusBar {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #f8f9fa, stop:1 #e9ecef);
-            color: #495057;
-            border-top: 2px solid #dee2e6;
-            font-size: 12px;
-            font-weight: 500;
-            padding: 4px;
-        }
-        QGroupBox {
-            font-weight: bold;
-            font-size: 13px;
-            border: 2px solid #e1e4e8;
-            border-radius: 8px;
-            margin-top: 12px;
-            padding-top: 12px;
-            background-color: #fafbfc;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left;
-            padding: 0 8px;
-            color: #24292e;
-        }
-        QMenuBar {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #ffffff, stop:1 #f6f8fa);
-            border-bottom: 2px solid #e1e4e8;
-            font-size: 13px;
-            font-weight: 500;
-        }
-        QMenuBar::item {
-            padding: 6px 12px;
-            background-color: transparent;
-        }
-        QMenuBar::item:selected {
-            background-color: #e8f4fc;
-            color: #0078d4;
-        }
-        QMenu {
-            background-color: white;
-            border: 2px solid #e1e4e8;
-            border-radius: 6px;
-            padding: 4px;
-        }
-        QMenu::item {
-            padding: 8px 32px 8px 24px;
-            border-radius: 4px;
-        }
-        QMenu::item:selected {
-            background-color: #e8f4fc;
-            color: #0078d4;
-        }
-        QMenu::separator {
-            height: 1px;
-            background-color: #e1e4e8;
-            margin: 4px 8px;
-        }
-        QScrollBar:vertical {
-            border: none;
-            background: #f6f8fa;
-            width: 12px;
-            border-radius: 6px;
-        }
-        QScrollBar::handle:vertical {
-            background: #c1c8cd;
-            border-radius: 6px;
-            min-height: 20px;
-        }
-        QScrollBar::handle:vertical:hover {
-            background: #a8b0b8;
-        }
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-            border: none;
-            background: none;
-        }
-        QSplitter::handle {
-            background-color: #dee2e6;
-            margin: 2px 0;
-        }
-        QSplitter::handle:hover {
-            background-color: #0078d4;
-        }
-        """
-
-    def get_dark_stylesheet(self):
-        """Dark mode stylesheet"""
-        return """
-        QMainWindow {
-            background-color: #1e1e1e;
-        }
-        QPushButton {
-            background-color: #0078d4;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            padding: 10px 20px;
-            font-size: 14px;
-            font-weight: 600;
-            font-family: 'Segoe UI', Arial, sans-serif;
-        }
-        QPushButton:hover {
-            background-color: #106ebe;
-        }
-        QPushButton:pressed {
-            background-color: #005a9e;
-        }
-        QPushButton:disabled {
-            background-color: #444444;
-            color: #888888;
-        }
-        QTextEdit, QListWidget {
-            background-color: #2d2d2d;
-            color: #e0e0e0;
-            border: 2px solid #404040;
-            border-radius: 6px;
-            padding: 10px;
-            font-family: 'Consolas', 'Courier New', monospace;
-        }
-        QTextEdit:focus, QListWidget:focus {
-            border: 2px solid #0078d4;
-        }
-        QListWidget::item {
-            padding: 8px;
-            border-bottom: 1px solid #3f3f3f;
-        }
-        QListWidget::item:selected {
-            background-color: #094771;
-            color: #fff;
-        }
-        QStatusBar {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #252525, stop:1 #1e1e1e);
-            color: #c0c0c0;
-            border-top: 2px solid #404040;
-            font-size: 12px;
-            font-weight: 500;
-            padding: 4px;
-        }
-        QGroupBox {
-            font-weight: bold;
-            font-size: 13px;
-            color: #e0e0e0;
-            border: 2px solid #404040;
-            border-radius: 8px;
-            margin-top: 12px;
-            padding-top: 12px;
-            background-color: #252525;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            subcontrol-position: top left;
-            padding: 0 8px;
-            color: #e0e0e0;
-        }
-        QLabel {
-            color: #e0e0e0;
-        }
-        QLineEdit {
-            background-color: #2d2d2d;
-            color: #e0e0e0;
-            border: 2px solid #404040;
-            border-radius: 6px;
-            padding: 8px;
-        }
-        QLineEdit:focus {
-            border: 2px solid #0078d4;
-        }
-        QMenuBar {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #2d2d2d, stop:1 #252525);
-            color: #e0e0e0;
-            border-bottom: 2px solid #404040;
-            font-size: 13px;
-            font-weight: 500;
-        }
-        QMenuBar::item {
-            padding: 6px 12px;
-            background-color: transparent;
-            color: #e0e0e0;
-        }
-        QMenuBar::item:selected {
-            background-color: #094771;
-            color: #ffffff;
-        }
-        QMenu {
-            background-color: #2d2d2d;
-            color: #e0e0e0;
-            border: 2px solid #404040;
-            border-radius: 6px;
-            padding: 4px;
-        }
-        QMenu::item {
-            padding: 8px 32px 8px 24px;
-            border-radius: 4px;
-        }
-        QMenu::item:selected {
-            background-color: #094771;
-            color: #ffffff;
-        }
-        QMenu::separator {
-            height: 1px;
-            background-color: #404040;
-            margin: 4px 8px;
-        }
-        QCheckBox {
-            color: #e0e0e0;
-        }
-        QScrollBar:vertical {
-            border: none;
-            background: #252525;
-            width: 12px;
-            border-radius: 6px;
-        }
-        QScrollBar::handle:vertical {
-            background: #505050;
-            border-radius: 6px;
-            min-height: 20px;
-        }
-        QScrollBar::handle:vertical:hover {
-            background: #606060;
-        }
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-            border: none;
-            background: none;
-        }
-        QSplitter::handle {
-            background-color: #404040;
-            margin: 2px 0;
-        }
-        QSplitter::handle:hover {
-            background-color: #0078d4;
-        }
-        """

@@ -6,8 +6,9 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QProgressBar, QScrollArea, QFrame
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont
+from transcription_app.gui.styles import AnimationHelper
 
 
 class FileQueueItem(QFrame):
@@ -20,6 +21,7 @@ class FileQueueItem(QFrame):
         super().__init__(parent)
         self.file_id = file_id
         self.file_path = file_path
+        self._progress_animation = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -123,8 +125,22 @@ class FileQueueItem(QFrame):
         layout.addLayout(info_row)
 
     def update_progress(self, percentage: int, status: str):
-        """Update progress bar and status"""
-        self.progress_bar.setValue(percentage)
+        """Update progress bar and status with smooth animation"""
+        # Animate progress bar changes
+        current_value = self.progress_bar.value()
+        if percentage != current_value:
+            # Stop any existing animation
+            if self._progress_animation:
+                self._progress_animation.stop()
+
+            # Create smooth progress animation
+            self._progress_animation = QPropertyAnimation(self.progress_bar, b"value")
+            self._progress_animation.setDuration(AnimationHelper.DURATION_NORMAL)
+            self._progress_animation.setStartValue(current_value)
+            self._progress_animation.setEndValue(percentage)
+            self._progress_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._progress_animation.start()
+
         self.status_label.setText(status)
         self.percent_label.setText(f"{percentage}%")
 
