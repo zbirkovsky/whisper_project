@@ -1,12 +1,14 @@
 """
 Dialog for audio recording with system audio + microphone
-Now supports unlimited recording with manual stop
+Now supports unlimited recording with manual stop and Teams meeting detection
 """
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QCheckBox, QGroupBox
+    QPushButton, QCheckBox, QGroupBox, QLineEdit
 )
 from PySide6.QtCore import Slot, Qt, QTimer, QTime
+
+from transcription_app.integrations.teams_detector import detect_teams_meeting, is_teams_running
 
 
 class RecordingDialog(QDialog):
@@ -74,6 +76,83 @@ class RecordingDialog(QDialog):
         sources_layout.addWidget(self.system_check)
 
         layout.addWidget(sources_group)
+
+        # Teams meeting detection section
+        teams_group = QGroupBox("Meeting Name (Optional)")
+        teams_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 14px;
+                border: 2px solid #e1e4e8;
+                border-radius: 8px;
+                margin-top: 12px;
+                padding: 15px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 8px;
+            }
+        """)
+        teams_layout = QVBoxLayout(teams_group)
+
+        # Auto-detect checkbox
+        self.teams_detect_check = QCheckBox("📅 Auto-detect Teams meeting name")
+        # Get setting from config
+        detect_enabled = getattr(self.viewmodel.engine.config, 'auto_detect_teams_meeting', True)
+        self.teams_detect_check.setChecked(detect_enabled)
+        self.teams_detect_check.setToolTip("Automatically detect and use Microsoft Teams meeting name for filename")
+        self.teams_detect_check.setStyleSheet("font-size: 13px; padding: 5px;")
+        self.teams_detect_check.stateChanged.connect(self.on_teams_detect_toggled)
+        teams_layout.addWidget(self.teams_detect_check)
+
+        # Meeting name input row
+        meeting_name_layout = QHBoxLayout()
+
+        self.meeting_name_edit = QLineEdit()
+        self.meeting_name_edit.setPlaceholderText("Meeting name (leave empty for timestamp only)")
+        self.meeting_name_edit.setStyleSheet("""
+            QLineEdit {
+                padding: 8px;
+                border: 2px solid #e1e4e8;
+                border-radius: 6px;
+                font-size: 13px;
+            }
+            QLineEdit:focus {
+                border-color: #0078d4;
+            }
+        """)
+        meeting_name_layout.addWidget(self.meeting_name_edit)
+
+        self.detect_btn = QPushButton("🔄")
+        self.detect_btn.setFixedWidth(40)
+        self.detect_btn.setToolTip("Detect Teams meeting now")
+        self.detect_btn.clicked.connect(self.detect_teams_meeting)
+        self.detect_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0078d4;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background-color: #106ebe;
+            }
+        """)
+        meeting_name_layout.addWidget(self.detect_btn)
+
+        teams_layout.addLayout(meeting_name_layout)
+
+        # Detection status label
+        self.teams_status_label = QLabel("")
+        self.teams_status_label.setStyleSheet("color: #6c757d; font-size: 11px; font-style: italic;")
+        teams_layout.addWidget(self.teams_status_label)
+
+        layout.addWidget(teams_group)
+
+        # Try to detect meeting on dialog open
+        QTimer.singleShot(100, self.detect_teams_meeting)
 
         # Timer display
         self.timer_label = QLabel("00:00:00")
@@ -262,8 +341,11 @@ class RecordingDialog(QDialog):
         # Start timer
         self.timer.start(1000)  # Update every second
 
+        # Get meeting name for filename
+        meeting_name = self.get_meeting_name()
+
         # Start actual recording with a very long duration (2 hours max)
-        self.viewmodel.start_recording(7200, record_mic, record_system)
+        self.viewmodel.start_recording(7200, record_mic, record_system, meeting_name)
 
     def pause_recording(self):
         """Pause/Resume recording"""
@@ -360,6 +442,44 @@ class RecordingDialog(QDialog):
         self.is_paused = False
         self.elapsed_time = 0
         self.pause_btn.setText("⏸ Pause")
+
+    def detect_teams_meeting(self):
+        """Detect active Teams meeting and update UI"""
+        if not self.teams_detect_check.isChecked():
+            return
+
+        # Check if Teams is running first
+        if not is_teams_running():
+            self.teams_status_label.setText("⚠️ Teams is not running")
+            self.teams_status_label.setStyleSheet("color: #ffc107; font-size: 11px; font-style: italic;")
+            return
+
+        # Try to detect meeting
+        meeting_name = detect_teams_meeting()
+
+        if meeting_name:
+            self.meeting_name_edit.setText(meeting_name)
+            self.teams_status_label.setText(f"✅ Detected: {meeting_name}")
+            self.teams_status_label.setStyleSheet("color: #28a745; font-size: 11px; font-style: italic;")
+        else:
+            self.teams_status_label.setText("ℹ️ No active meeting detected (join a meeting first)")
+            self.teams_status_label.setStyleSheet("color: #6c757d; font-size: 11px; font-style: italic;")
+
+    def on_teams_detect_toggled(self, state):
+        """Handle Teams detection checkbox toggle"""
+        enabled = state == Qt.CheckState.Checked.value
+        self.meeting_name_edit.setEnabled(True)  # Always enabled for manual entry
+        self.detect_btn.setEnabled(enabled)
+
+        if enabled:
+            self.detect_teams_meeting()
+        else:
+            self.teams_status_label.setText("")
+
+    def get_meeting_name(self):
+        """Get the meeting name for filename, or None"""
+        meeting_name = self.meeting_name_edit.text().strip()
+        return meeting_name if meeting_name else None
 
     def open_recordings_folder(self):
         """Open the recordings folder in file explorer"""

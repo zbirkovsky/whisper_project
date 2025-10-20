@@ -98,6 +98,10 @@ class AppConfig(BaseSettings):
         default=700,
         description="Default window height"
     )
+    auto_detect_teams_meeting: bool = Field(
+        default=True,
+        description="Automatically detect Teams meeting names for recordings"
+    )
 
     # Logging
     log_level: str = Field(
