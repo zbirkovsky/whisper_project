@@ -5,6 +5,7 @@ Bridges GUI and business logic using MVVM pattern
 from pathlib import Path
 from typing import Dict, Any
 from datetime import datetime
+import re
 from PySide6.QtCore import QObject, Signal, Slot
 
 from transcription_app.core.transcription_engine import TranscriptionWorker
@@ -12,6 +13,46 @@ from transcription_app.core.audio_recorder import RecordingWorker
 from transcription_app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Sanitize filename by replacing invalid Windows characters
+
+    Args:
+        filename: The filename string to sanitize
+
+    Returns:
+        Sanitized filename safe for Windows filesystems
+    """
+    # Invalid Windows filename characters: < > : " / \ | ? *
+    # Also replace em-dashes and en-dashes with regular hyphens
+    replacements = {
+        '<': '',
+        '>': '',
+        ':': '-',
+        '"': '',
+        '/': '-',
+        '\\': '-',
+        '|': '-',
+        '?': '',
+        '*': '',
+        '—': '-',  # em-dash
+        '–': '-',  # en-dash
+    }
+
+    sanitized = filename
+    for char, replacement in replacements.items():
+        sanitized = sanitized.replace(char, replacement)
+
+    # Remove any leading/trailing spaces or periods (Windows doesn't like these)
+    sanitized = sanitized.strip('. ')
+
+    # Replace multiple consecutive spaces or hyphens with single ones
+    sanitized = re.sub(r'\s+', ' ', sanitized)
+    sanitized = re.sub(r'-+', '-', sanitized)
+
+    return sanitized
 
 
 class TranscriptionViewModel(QObject):
@@ -57,21 +98,24 @@ class TranscriptionViewModel(QObject):
 
     @Slot(str)
     @Slot(str, bool)
-    def start_transcription(self, file_path: str, enable_diarization: bool = True):
+    @Slot(str, bool, str)
+    def start_transcription(self, file_path: str, enable_diarization: bool = True, language: str = None):
         """
         Start transcription for a specific file
 
         Args:
             file_path: Path to audio file
             enable_diarization: Whether to enable speaker diarization
+            language: Language code (cs, en, auto) for model selection. None uses config default.
         """
         file_id = str(Path(file_path).name)
-        logger.info(f"Starting transcription for: {file_id}")
+        logger.info(f"Starting transcription for: {file_id}, language={language}")
 
         worker = TranscriptionWorker(
             self.engine,
             file_path,
-            enable_diarization=enable_diarization
+            enable_diarization=enable_diarization,
+            language=language
         )
 
         # Connect signals
@@ -138,7 +182,10 @@ class TranscriptionViewModel(QObject):
 
         # Generate filename with meeting name if provided
         if meeting_name:
-            filename = f"Teams_{meeting_name}_{timestamp}.wav"
+            # Sanitize meeting name to ensure valid filename
+            sanitized_meeting = sanitize_filename(meeting_name)
+            filename = f"Teams_{sanitized_meeting}_{timestamp}.wav"
+            logger.info(f"Using sanitized meeting name: {sanitized_meeting}")
         else:
             filename = f"recording_{timestamp}.wav"
 

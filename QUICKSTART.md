@@ -40,6 +40,22 @@ That's it! The application window should open.
 2. **Wait**: First run will download models (~1-3GB, takes 5-10 minutes)
 3. **View Results**: Transcription appears in the bottom pane with timestamps and speakers
 
+### Multi-Language Support (NEW!)
+
+The application now supports optimized models for Czech and English:
+
+**Recording with Language Selection**:
+1. Click "Record Audio" button
+2. System auto-detects language from Teams meeting name
+3. Choose language: Auto-detect, Czech, or English
+4. Czech meetings use fine-tuned model (27% better accuracy)
+5. English meetings use turbo model (8x faster)
+
+**Available Models**:
+- **Czech**: `whisper-large-v3-czech-cv13-ct2` (7.89% WER)
+- **English**: `large-v3-turbo` (8x faster)
+- **Auto**: `large-v3` (general purpose)
+
 ## Common Commands
 
 ### Run Application

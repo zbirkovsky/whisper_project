@@ -4,11 +4,13 @@ Now supports unlimited recording with manual stop and Teams meeting detection
 """
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QCheckBox, QGroupBox, QLineEdit
+    QPushButton, QCheckBox, QGroupBox, QLineEdit, QComboBox
 )
 from PySide6.QtCore import Slot, Qt, QTimer, QTime
 
 from transcription_app.integrations.teams_detector import detect_teams_meeting, is_teams_running
+from transcription_app.gui.widgets.recording_overlay import RecordingOverlay
+from transcription_app.utils.language_detector import detect_language_from_teams_meeting
 
 
 class RecordingDialog(QDialog):
@@ -22,6 +24,15 @@ class RecordingDialog(QDialog):
         self.elapsed_time = 0  # in seconds
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_timer)
+        self.selected_language = "auto"  # Track language for recorded file transcription
+
+        # Create overlay widget (hidden by default)
+        self.overlay = RecordingOverlay()
+        self.overlay.pause_clicked.connect(self.pause_recording)
+        self.overlay.stop_clicked.connect(self.stop_recording)
+        self.overlay.minimize_clicked.connect(self.show_dialog_from_overlay)
+        self.overlay.hide()
+
         self.setup_ui()
         self.connect_signals()
 
@@ -154,6 +165,69 @@ class RecordingDialog(QDialog):
         # Try to detect meeting on dialog open
         QTimer.singleShot(100, self.detect_teams_meeting)
 
+        # Language Selection section
+        lang_group = QGroupBox("Transcription Language")
+        lang_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 14px;
+                border: 2px solid #e1e4e8;
+                border-radius: 8px;
+                margin-top: 12px;
+                padding: 15px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 8px;
+            }
+        """)
+        lang_layout = QVBoxLayout(lang_group)
+
+        # Language combo box
+        self.language_combo = QComboBox()
+        self.language_combo.addItems([
+            "🌐 Auto-detect language",
+            "🇨🇿 Czech (Čeština)",
+            "🇬🇧 English"
+        ])
+        self.language_combo.setCurrentIndex(0)  # Default to auto
+        self.language_combo.setToolTip("Choose transcription language or let the system auto-detect")
+        self.language_combo.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 2px solid #e1e4e8;
+                border-radius: 6px;
+                font-size: 13px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #0078d4;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border: 2px solid #6c757d;
+                width: 8px;
+                height: 8px;
+                border-top: none;
+                border-left: none;
+                margin-right: 8px;
+            }
+        """)
+        lang_layout.addWidget(self.language_combo)
+
+        # Language detection info label
+        self.language_info_label = QLabel("ℹ️ Auto-detection will use the best model for detected language")
+        self.language_info_label.setStyleSheet("color: #6c757d; font-size: 11px; font-style: italic; padding: 5px;")
+        self.language_info_label.setWordWrap(True)
+        lang_layout.addWidget(self.language_info_label)
+
+        layout.addWidget(lang_group)
+
         # Timer display
         self.timer_label = QLabel("00:00:00")
         self.timer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -282,6 +356,27 @@ class RecordingDialog(QDialog):
         """)
         bottom_layout.addWidget(open_folder_btn)
 
+        # Overlay mode button (only visible when recording)
+        self.overlay_btn = QPushButton("🎯 Overlay Mode")
+        self.overlay_btn.setMinimumWidth(130)
+        self.overlay_btn.setToolTip("Switch to compact overlay (stays on top)")
+        self.overlay_btn.clicked.connect(self.switch_to_overlay)
+        self.overlay_btn.setVisible(False)  # Hidden initially
+        self.overlay_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6f42c1;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #5a32a3;
+            }
+        """)
+        bottom_layout.addWidget(self.overlay_btn)
+
         bottom_layout.addStretch()
 
         close_btn = QPushButton("Close")
@@ -320,6 +415,9 @@ class RecordingDialog(QDialog):
             self.status_label.setStyleSheet("color: #dc3545; font-weight: bold; font-size: 14px;")
             return
 
+        # Save selected language for later use when transcribing the recorded file
+        self.selected_language = self.get_selected_language()
+
         self.is_recording = True
         self.is_paused = False
         self.elapsed_time = 0
@@ -340,6 +438,9 @@ class RecordingDialog(QDialog):
 
         # Start timer
         self.timer.start(1000)  # Update every second
+
+        # Show overlay button when recording
+        self.overlay_btn.setVisible(True)
 
         # Get meeting name for filename
         meeting_name = self.get_meeting_name()
@@ -436,6 +537,13 @@ class RecordingDialog(QDialog):
         self.status_label.setStyleSheet("color: #6c757d; font-size: 14px; font-weight: 500;")
         self.recording_indicator.setVisible(False)
 
+        # Hide overlay button
+        self.overlay_btn.setVisible(False)
+
+        # Stop and hide overlay if active
+        self.overlay.stop_recording()
+        self.overlay.hide()
+
         self.is_recording = False
         self.is_paused = False
         self.elapsed_time = 0
@@ -459,6 +567,19 @@ class RecordingDialog(QDialog):
             self.meeting_name_edit.setText(meeting_name)
             self.teams_status_label.setText(f"✅ Detected: {meeting_name}")
             self.teams_status_label.setStyleSheet("color: #28a745; font-size: 11px; font-style: italic;")
+
+            # Auto-detect language from meeting name if in auto mode
+            if self.language_combo.currentIndex() == 0:  # Auto-detect mode
+                detected_lang = detect_language_from_teams_meeting(meeting_name)
+                if detected_lang == 'cs':
+                    self.language_info_label.setText("🇨🇿 Czech language detected from meeting name")
+                    self.language_info_label.setStyleSheet("color: #28a745; font-size: 11px; font-style: italic; padding: 5px;")
+                elif detected_lang == 'en':
+                    self.language_info_label.setText("🇬🇧 English language detected from meeting name")
+                    self.language_info_label.setStyleSheet("color: #28a745; font-size: 11px; font-style: italic; padding: 5px;")
+                else:
+                    self.language_info_label.setText("ℹ️ Language will be auto-detected from audio")
+                    self.language_info_label.setStyleSheet("color: #6c757d; font-size: 11px; font-style: italic; padding: 5px;")
         else:
             self.teams_status_label.setText("ℹ️ No active meeting detected (join a meeting first)")
             self.teams_status_label.setStyleSheet("color: #6c757d; font-size: 11px; font-style: italic;")
@@ -478,6 +599,17 @@ class RecordingDialog(QDialog):
         """Get the meeting name for filename, or None"""
         meeting_name = self.meeting_name_edit.text().strip()
         return meeting_name if meeting_name else None
+
+    def get_selected_language(self):
+        """Get the selected language code from dropdown"""
+        index = self.language_combo.currentIndex()
+        if index == 0:
+            return "auto"
+        elif index == 1:
+            return "cs"  # Czech
+        elif index == 2:
+            return "en"  # English
+        return "auto"  # Fallback
 
     def open_recordings_folder(self):
         """Open the recordings folder in file explorer"""
@@ -499,8 +631,50 @@ class RecordingDialog(QDialog):
         else:  # Linux
             subprocess.Popen(['xdg-open', str(recordings_dir)])
 
+    def switch_to_overlay(self):
+        """Switch from dialog to compact overlay mode"""
+        if not self.is_recording:
+            return
+
+        # Sync timer state with overlay
+        self.overlay.elapsed_time = self.elapsed_time
+        self.overlay.is_paused = self.is_paused
+
+        # Show overlay and hide dialog
+        self.overlay.start_recording()
+        self.overlay.show()
+        self.hide()
+
+    def show_dialog_from_overlay(self):
+        """Switch from overlay back to dialog"""
+        # Sync timer state from overlay
+        self.elapsed_time = self.overlay.elapsed_time
+        self.is_paused = self.overlay.is_paused
+
+        # Update dialog timer display
+        time = QTime(0, 0, 0).addSecs(self.elapsed_time)
+        self.timer_label.setText(time.toString("HH:mm:ss"))
+
+        # Update pause button state
+        if self.is_paused:
+            self.pause_btn.setText("▶ Resume")
+            self.status_label.setText("⏸ Paused")
+            self.status_label.setStyleSheet("color: #ffc107; font-weight: bold; font-size: 14px;")
+        else:
+            self.pause_btn.setText("⏸ Pause")
+            self.status_label.setText("🔴 Recording...")
+            self.status_label.setStyleSheet("color: #dc3545; font-weight: bold; font-size: 14px;")
+
+        # Hide overlay and show dialog
+        self.overlay.hide()
+        self.show()
+
     def closeEvent(self, event):
         """Handle dialog close"""
+        # Close overlay if open
+        if self.overlay.isVisible():
+            self.overlay.close()
+
         if self.is_recording:
             self.stop_recording()
         event.accept()

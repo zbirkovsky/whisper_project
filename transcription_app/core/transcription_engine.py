@@ -17,6 +17,7 @@ except ImportError as e:
     ) from e
 
 from transcription_app.utils.logger import get_logger
+from transcription_app.utils.language_detector import get_best_model_for_language
 
 logger = get_logger(__name__)
 
@@ -28,6 +29,7 @@ class TranscriptionEngine(QObject):
         super().__init__()
         self.config = config
         self.model = None
+        self.current_model_name = None  # Track which model is loaded
         self.diarize_model = None
         self.device = config.validate_device()
         self.compute_type = config.compute_type
@@ -37,46 +39,67 @@ class TranscriptionEngine(QObject):
             f"compute_type={self.compute_type}, model={config.whisper_model}"
         )
 
-    def ensure_models_loaded(self):
-        """Load Whisper model if not already loaded"""
-        if self.model is None:
-            logger.info(f"Loading Whisper model: {self.config.whisper_model}")
+    def ensure_models_loaded(self, language: Optional[str] = None):
+        """
+        Load Whisper model if not already loaded, or switch to language-specific model
 
-            try:
-                # Set environment variable to allow downloads
-                import os
-                os.environ['HF_HUB_OFFLINE'] = '0'
+        Args:
+            language: Language code (cs, en, auto) to select appropriate model
+        """
+        # Determine which model to use
+        if language and language != "auto":
+            desired_model = get_best_model_for_language(language)
+        else:
+            desired_model = self.config.whisper_model
 
-                # Try loading with retries for HuggingFace server errors
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        self.model = whisperx.load_model(
-                            self.config.whisper_model,
-                            device=self.device,
-                            compute_type=self.compute_type,
-                            download_root=str(self.config.models_dir)
-                        )
-                        logger.info("Whisper model loaded successfully")
-                        break
-                    except Exception as e:
-                        if attempt < max_retries - 1 and "500" in str(e):
-                            logger.warning(f"HuggingFace server error, retrying... (attempt {attempt + 1}/{max_retries})")
-                            import time
-                            time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
-                        else:
-                            raise
-            except Exception as e:
-                error_msg = str(e)
-                if "500" in error_msg:
-                    logger.error("HuggingFace servers are experiencing issues. Please try again in a few minutes.")
-                    raise Exception(
-                        "HuggingFace servers are temporarily down. Please try again in a few minutes.\n"
-                        "This is a temporary server issue, not a problem with the application."
+        # Check if we need to switch models
+        if self.model is not None and self.current_model_name == desired_model:
+            logger.debug(f"Model {desired_model} already loaded")
+            return
+
+        # Unload current model if switching
+        if self.model is not None and self.current_model_name != desired_model:
+            logger.info(f"Switching from {self.current_model_name} to {desired_model}")
+            self.unload_models()
+
+        logger.info(f"Loading Whisper model: {desired_model}")
+
+        try:
+            # Set environment variable to allow downloads
+            import os
+            os.environ['HF_HUB_OFFLINE'] = '0'
+
+            # Try loading with retries for HuggingFace server errors
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    self.model = whisperx.load_model(
+                        desired_model,
+                        device=self.device,
+                        compute_type=self.compute_type,
+                        download_root=str(self.config.models_dir)
                     )
-                else:
-                    logger.error(f"Failed to load Whisper model: {e}", exc_info=True)
-                    raise
+                    self.current_model_name = desired_model
+                    logger.info(f"Whisper model loaded successfully: {desired_model}")
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1 and "500" in str(e):
+                        logger.warning(f"HuggingFace server error, retrying... (attempt {attempt + 1}/{max_retries})")
+                        import time
+                        time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+                    else:
+                        raise
+        except Exception as e:
+            error_msg = str(e)
+            if "500" in error_msg:
+                logger.error("HuggingFace servers are experiencing issues. Please try again in a few minutes.")
+                raise Exception(
+                    "HuggingFace servers are temporarily down. Please try again in a few minutes.\n"
+                    "This is a temporary server issue, not a problem with the application."
+                )
+            else:
+                logger.error(f"Failed to load Whisper model: {e}", exc_info=True)
+                raise
 
     def unload_models(self):
         """Unload models to free memory"""
@@ -138,9 +161,9 @@ class TranscriptionWorker(QThread):
     def run(self):
         """Execute transcription in background thread"""
         try:
-            # Load models
+            # Load models (with language-specific model selection)
             self.progress_updated.emit(5, "Loading models...")
-            self.engine.ensure_models_loaded()
+            self.engine.ensure_models_loaded(self.language)
 
             if self.is_cancelled:
                 return

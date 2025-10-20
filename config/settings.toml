@@ -10,12 +10,17 @@ organization = "CloudCall"
 # recordings_dir = "C:\\Users\\YourUser\\.cloudcall\\recordings"
 
 [transcription]
-# Whisper model: tiny, base, small, medium, large-v2, large-v3
-whisper_model = "base"
-compute_type = "float16"  # float16, int8, float32
+# Whisper model: tiny, base, small, medium, large-v2, large-v3, large-v3-turbo
+whisper_model = "large-v3"  # Default model for auto-detection
+compute_type = "float16"  # float16 for GPU, int8 for CPU
 batch_size = 16
-device = "cuda"  # cuda or cpu
-language = "auto"  # auto-detect or specific language code
+device = "cuda"  # GPU acceleration enabled with RTX 4090
+language = "auto"  # auto-detect, cs (Czech), en (English)
+
+# Language-specific models for optimal quality
+model_czech = "whisper-large-v3-czech-cv13-ct2"  # 7.89% WER - 27% better for Czech
+model_english = "large-v3-turbo"  # 8x faster for English
+model_fallback = "large-v3"  # Used when language unknown or model not available
 
 [audio]
 sample_rate = 48000

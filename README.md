@@ -5,9 +5,12 @@ A professional Windows desktop application for audio transcription with speaker 
 ## Features
 
 - **High-Accuracy Transcription**: Uses OpenAI's Whisper model via WhisperX for state-of-the-art speech recognition
+- **Multi-Language Support**: Optimized models for Czech (27% better accuracy) and English (8x faster), with auto-detection
+- **Language Detection**: Automatically detects language from Teams meeting names and file content
 - **Speaker Diarization**: Automatically identifies and labels different speakers using Pyannote.audio
 - **GPU Acceleration**: Leverages NVIDIA CUDA for fast transcription (up to 10x real-time on RTX 4090)
 - **Audio Recording**: Capture audio from microphone and/or system audio simultaneously using WASAPI loopback
+- **Teams Integration**: Auto-detects Teams meeting names for organized recordings
 - **Drag & Drop Interface**: Modern, Fluent Design-inspired UI with drag-and-drop file support
 - **Multiple Export Formats**: Save transcripts as TXT or SRT subtitle files
 - **Batch Processing**: Process multiple audio files in queue
@@ -133,11 +136,36 @@ python -m transcription_app.main
 
 1. Click "Record Audio" button
 2. Configure settings:
-   - **Duration**: How long to record (1-7200 seconds)
-   - **Microphone**: Capture your voice
-   - **System Audio**: Capture computer audio (apps, browser, etc.)
+   - **Audio Sources**: Choose microphone and/or system audio
+   - **Meeting Name**: Auto-detects Teams meetings or enter manually
+   - **Language**: Select transcription language (Auto-detect, Czech, English)
 3. Click "Start Recording"
-4. Recorded file is automatically added to transcription queue
+4. Recording supports unlimited duration with pause/resume
+5. Recorded file is automatically added to transcription queue
+
+### Multi-Language Support
+
+The application intelligently selects the best model based on language:
+
+**Czech Language** (Fine-tuned model):
+- Model: `whisper-large-v3-czech-cv13-ct2`
+- Accuracy: 7.89% WER (27% better than generic model)
+- Best for: Czech meetings, customer calls, documentation
+
+**English Language** (Turbo model):
+- Model: `large-v3-turbo`
+- Speed: 8x faster than standard large-v3
+- Best for: English meetings, quick transcription
+
+**Auto-Detection**:
+- Automatically detects language from Teams meeting names
+- Uses Czech-specific character detection (áčďéěíňóřšťúůýž)
+- Falls back to generic `large-v3` model for other languages
+
+**How to Use**:
+1. In Recording Dialog, language is auto-detected from Teams meeting name
+2. You can override by selecting from the dropdown (Auto-detect, Czech, English)
+3. System automatically loads the optimal model for selected language
 
 ### Configuration
 
@@ -145,10 +173,16 @@ Edit `config/settings.toml` to customize:
 
 ```toml
 [transcription]
-whisper_model = "base"  # Options: tiny, base, small, medium, large-v2, large-v3
-compute_type = "float16"  # float16 (fastest), int8 (balanced), float32 (accurate)
+whisper_model = "large-v3"  # Default model for auto-detection
+compute_type = "float16"  # float16 (GPU), int8 (CPU), float32 (compatibility)
 batch_size = 16
 device = "cuda"  # or "cpu"
+language = "auto"  # auto, cs (Czech), en (English)
+
+# Language-specific models for optimal quality
+model_czech = "whisper-large-v3-czech-cv13-ct2"  # 7.89% WER - 27% better for Czech
+model_english = "large-v3-turbo"  # 8x faster for English
+model_fallback = "large-v3"  # Used when language unknown
 
 [diarization]
 enabled = true
@@ -229,12 +263,15 @@ cloudcall-transcription/
 │   │   └── model_manager.py    # Model management
 │   ├── gui/                    # User interface
 │   │   ├── main_window.py      # Main window
-│   │   └── widgets/            # UI widgets
+│   │   └── widgets/            # UI widgets (file queue, recording, overlay)
 │   ├── viewmodels/             # MVVM ViewModels
 │   │   └── transcription_vm.py
+│   ├── integrations/           # External integrations
+│   │   └── teams_detector.py   # Teams meeting detection
 │   ├── utils/                  # Utilities
 │   │   ├── config.py           # Configuration management
-│   │   └── logger.py           # Logging setup
+│   │   ├── logger.py           # Logging setup
+│   │   └── language_detector.py # Language detection for multi-language support
 │   └── main.py                 # Application entry point
 ├── config/                     # Configuration files
 │   ├── settings.toml

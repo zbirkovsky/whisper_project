@@ -26,15 +26,19 @@ class AppConfig(BaseSettings):
         default_factory=lambda: Path.home() / '.cloudcall' / 'recordings',
         description="Audio recordings storage directory"
     )
+    transcripts_dir: Path = Field(
+        default_factory=lambda: Path.home() / '.cloudcall' / 'transcripts',
+        description="Transcripts export directory"
+    )
 
     # Transcription settings
     whisper_model: str = Field(
-        default="base",
+        default="large-v3",
         description="Whisper model size: tiny, base, small, medium, large-v2, large-v3"
     )
     compute_type: str = Field(
         default="float16",
-        description="Computation precision: float16, int8, float32"
+        description="Computation precision: float16 for GPU, int8 for CPU, float32 for compatibility"
     )
     batch_size: int = Field(
         default=16,
@@ -42,11 +46,25 @@ class AppConfig(BaseSettings):
     )
     device: str = Field(
         default="cuda",
-        description="Device to use: cuda or cpu"
+        description="Device to use: cuda for GPU acceleration or cpu for CPU-only"
     )
     language: str = Field(
         default="auto",
         description="Language code for transcription (auto for auto-detect)"
+    )
+
+    # Language-specific models for optimal quality
+    model_czech: str = Field(
+        default="whisper-large-v3-czech-cv13-ct2",
+        description="Model to use for Czech language"
+    )
+    model_english: str = Field(
+        default="large-v3-turbo",
+        description="Model to use for English language"
+    )
+    model_fallback: str = Field(
+        default="large-v3",
+        description="Fallback model when language is unknown"
     )
 
     # Audio recording settings
@@ -59,8 +77,8 @@ class AppConfig(BaseSettings):
         description="Number of audio channels"
     )
     chunk_size: int = Field(
-        default=512,
-        description="Audio chunk size for recording"
+        default=2048,
+        description="Audio chunk size for recording (larger = better quality, less crackling)"
     )
     audio_format: str = Field(
         default="int16",
@@ -153,6 +171,7 @@ class AppConfig(BaseSettings):
         self.app_dir.mkdir(parents=True, exist_ok=True)
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self.recordings_dir.mkdir(parents=True, exist_ok=True)
+        self.transcripts_dir.mkdir(parents=True, exist_ok=True)
 
         # Convert log file path to absolute if relative
         if not self.log_file.is_absolute():
