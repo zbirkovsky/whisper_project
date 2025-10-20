@@ -184,26 +184,33 @@ class RecordingWorker(QThread):
 
             logger.info(f"Starting recording for {self.duration} seconds ({num_chunks} chunks)")
 
-            for i in range(num_chunks):
-                if self.is_cancelled:
-                    logger.info("Recording cancelled by user")
-                    break
-
+            chunks_recorded = 0
+            while chunks_recorded < num_chunks and not self.is_cancelled:
+                # Read from all streams for this chunk
+                chunk_success = False
                 for name, stream, channels in streams:
                     try:
+                        # Read one chunk of audio data
                         data = stream.read(
                             self.config.chunk_size,
                             exception_on_overflow=False
                         )
                         frames[name].append(data)
+                        chunk_success = True
                     except Exception as e:
                         logger.warning(f"Error reading from {name} stream: {e}")
+                        # Continue recording even if one stream fails
+                        continue
 
-                # Update progress
-                elapsed = (i + 1) * self.config.chunk_size / self.config.sample_rate
-                self.progress_updated.emit(elapsed)
+                if chunk_success:
+                    chunks_recorded += 1
 
-            logger.info("Recording loop finished, closing streams...")
+                    # Update progress every 10 chunks to reduce overhead
+                    if chunks_recorded % 10 == 0:
+                        elapsed = chunks_recorded * self.config.chunk_size / self.config.sample_rate
+                        self.progress_updated.emit(elapsed)
+
+            logger.info(f"Recording loop finished after {chunks_recorded} chunks ({chunks_recorded * self.config.chunk_size / self.config.sample_rate:.2f} seconds), closing streams...")
             # Close streams
             for name, stream, _ in streams:
                 try:

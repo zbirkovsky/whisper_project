@@ -13,7 +13,9 @@
       "Bash(git push:*)",
       "Bash(git commit:*)",
       "Read(//c/Users/zbirk/.cloudcall/**)",
-      "Bash(venv/Scripts/pip install:*)"
+      "Bash(venv/Scripts/pip install:*)",
+      "Bash(done)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []
