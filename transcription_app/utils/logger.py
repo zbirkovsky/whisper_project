@@ -86,6 +86,9 @@ def get_logger(name: str = 'CloudCall') -> logging.Logger:
     Returns:
         Logger instance
     """
+    # Always use CloudCall as parent to ensure all logs go to same handlers
+    if name != 'CloudCall' and not name.startswith('CloudCall.'):
+        name = f'CloudCall.{name}'
     return logging.getLogger(name)
 
 

@@ -17,14 +17,12 @@ from transcription_app.utils.config import get_config
 
 def main():
     """Main application entry point"""
-    # Enable High DPI scaling
+    # Enable High DPI scaling (these are automatic in Qt 6, but keep for compatibility)
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
-    if hasattr(Qt.ApplicationAttribute, 'AA_EnableHighDpiScaling'):
-        QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling)
-    if hasattr(Qt.ApplicationAttribute, 'AA_UseHighDpiPixmaps'):
-        QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
+    # Note: AA_EnableHighDpiScaling and AA_UseHighDpiPixmaps are deprecated in Qt 6
+    # and enabled by default, so we don't need to set them
 
     # Create application
     app = QApplication(sys.argv)

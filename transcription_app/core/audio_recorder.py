@@ -203,15 +203,22 @@ class RecordingWorker(QThread):
                 elapsed = (i + 1) * self.config.chunk_size / self.config.sample_rate
                 self.progress_updated.emit(elapsed)
 
+            logger.info("Recording loop finished, closing streams...")
             # Close streams
-            for _, stream, _ in streams:
-                stream.stop_stream()
-                stream.close()
+            for name, stream, _ in streams:
+                try:
+                    stream.stop_stream()
+                    stream.close()
+                    logger.info(f"Closed {name} stream")
+                except Exception as e:
+                    logger.error(f"Error closing {name} stream: {e}")
 
             # Process and save audio (even if cancelled - save what we recorded)
             # Check if we have any frames to save
             has_data = any(len(frame_list) > 0 for frame_list in frames.values())
+            logger.info(f"Checking if we have data to save... has_data={has_data}")
             if has_data:
+                logger.info("Saving audio...")
                 self._save_audio(frames)
                 logger.info(f"Recording complete: {self.output_file}")
                 self.recording_complete.emit(str(self.output_file))
