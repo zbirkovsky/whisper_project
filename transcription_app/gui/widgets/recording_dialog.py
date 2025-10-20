@@ -367,7 +367,7 @@ class RecordingDialog(QDialog):
             self.timer.stop()
 
     def stop_recording(self):
-        """Stop recording"""
+        """Stop recording early and save"""
         self.is_recording = False
         self.timer.stop()
 
@@ -380,10 +380,8 @@ class RecordingDialog(QDialog):
         self.status_label.setStyleSheet("color: #6c757d; font-weight: bold; font-size: 14px;")
         self.recording_indicator.setVisible(False)
 
-        # Signal the viewmodel to stop recording
-        # Note: The audio_recorder needs a method to stop early
-        # For now, the recording will continue until the full duration
-        # This is a limitation of the current implementation
+        # Cancel the recording worker (this will trigger save and completion)
+        self.viewmodel.cancel_transcription("recording")
 
     def update_timer(self):
         """Update the elapsed time display"""
