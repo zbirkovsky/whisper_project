@@ -188,8 +188,8 @@ class TranscriptionViewModel(QObject):
             logger.info(f"Cancelling transcription: {file_id}")
             worker = self.active_workers[file_id]
             worker.cancel()
-            worker.wait()  # Wait for thread to finish
-            del self.active_workers[file_id]
+            # Don't wait() - let worker complete async and emit signals
+            # Keep in active_workers so completion handler can clean up properly
 
     def cancel_all(self):
         """Cancel all active workers"""

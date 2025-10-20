@@ -209,10 +209,15 @@ class RecordingWorker(QThread):
                 stream.close()
 
             # Process and save audio (even if cancelled - save what we recorded)
-            self._save_audio(frames)
-
-            logger.info(f"Recording complete: {self.output_file}")
-            self.recording_complete.emit(str(self.output_file))
+            # Check if we have any frames to save
+            has_data = any(len(frame_list) > 0 for frame_list in frames.values())
+            if has_data:
+                self._save_audio(frames)
+                logger.info(f"Recording complete: {self.output_file}")
+                self.recording_complete.emit(str(self.output_file))
+            else:
+                logger.warning("No audio data recorded")
+                self.error_occurred.emit("No audio data was recorded")
 
         except Exception as e:
             error_msg = f"Recording error: {str(e)}"
