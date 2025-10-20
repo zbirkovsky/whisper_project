@@ -208,10 +208,7 @@ class RecordingWorker(QThread):
                 stream.stop_stream()
                 stream.close()
 
-            # Process and save audio
-            if self.is_cancelled:
-                return
-
+            # Process and save audio (even if cancelled - save what we recorded)
             self._save_audio(frames)
 
             logger.info(f"Recording complete: {self.output_file}")
