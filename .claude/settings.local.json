@@ -15,7 +15,21 @@
       "Read(//c/Users/zbirk/.cloudcall/**)",
       "Bash(venv/Scripts/pip install:*)",
       "Bash(done)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(find:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "WebFetch(domain:status.huggingface.co)",
+      "Bash(taskkill:*)",
+      "Bash(timeout:*)",
+      "Bash(venv/Scripts/pip:*)",
+      "Bash(where:*)",
+      "Bash(dir:*)",
+      "WebSearch",
+      "Bash(curl:*)",
+      "Bash(7z x:*)",
+      "Bash(venv/Scripts/ct2-transformers-converter:*)",
+      "Bash(del transcription_appguiwidgetsrecording_overlay.py)"
     ],
     "deny": [],
     "ask": []
