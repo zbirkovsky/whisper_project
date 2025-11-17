@@ -79,43 +79,43 @@ class ColorPalette:
 
 # ===== DESIGN TOKENS (Module-level constants) =====
 
-# Spacing scale (8px grid system)
+# Spacing scale (compact 4px grid system)
 SPACING = {
-    'xs': '4px',    # Extra small
-    'sm': '8px',    # Small
-    'md': '12px',   # Medium
-    'base': '16px', # Base unit
-    'lg': '20px',   # Large
-    'xl': '24px',   # Extra large
-    '2xl': '32px',  # 2x large
-    '3xl': '40px',  # 3x large
-    '4xl': '48px',  # 4x large
-}
-
-# Border radius scale
-RADIUS = {
+    'xs': '2px',    # Extra small
     'sm': '4px',    # Small
     'md': '8px',    # Medium
-    'lg': '12px',   # Large
-    'xl': '16px',   # Extra large
+    'base': '12px', # Base unit
+    'lg': '16px',   # Large
+    'xl': '20px',   # Extra large
+    '2xl': '24px',  # 2x large
+    '3xl': '32px',  # 3x large
+    '4xl': '40px',  # 4x large
+}
+
+# Border radius scale (more subtle)
+RADIUS = {
+    'sm': '2px',    # Small
+    'md': '4px',    # Medium
+    'lg': '6px',    # Large
+    'xl': '8px',    # Extra large
     'full': '9999px', # Circle/pill
 }
 
-# Typography scale
+# Typography scale (compact professional sizing)
 TYPOGRAPHY = {
     # Font families
     'font_primary': "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
     'font_mono': "'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace",
 
-    # Font sizes
-    'size_xs': '11px',
-    'size_sm': '12px',
-    'size_base': '14px',
-    'size_lg': '16px',
-    'size_xl': '18px',
-    'size_2xl': '24px',
-    'size_3xl': '32px',
-    'size_4xl': '40px',
+    # Font sizes (reduced for compact look)
+    'size_xs': '10px',
+    'size_sm': '11px',
+    'size_base': '12px',
+    'size_lg': '13px',
+    'size_xl': '14px',
+    'size_2xl': '18px',
+    'size_3xl': '24px',
+    'size_4xl': '32px',
 
     # Font weights
     'weight_regular': '400',

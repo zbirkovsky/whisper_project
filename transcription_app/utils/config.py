@@ -186,9 +186,13 @@ class AppConfig(BaseSettings):
             return False
 
     def validate_device(self) -> str:
-        """Validate and return the appropriate device"""
+        """Validate and return the appropriate device, adjusting compute_type if needed"""
         if self.device == "cuda" and not self.get_cuda_available():
             print("Warning: CUDA not available, falling back to CPU")
+            # Also adjust compute_type for CPU
+            if self.compute_type == "float16":
+                self.compute_type = "float32"
+                print("Info: Adjusted compute_type to float32 for CPU")
             return "cpu"
         return self.device
 

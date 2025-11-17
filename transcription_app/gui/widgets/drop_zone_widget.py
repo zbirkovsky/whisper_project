@@ -18,18 +18,18 @@ class DropZoneWidget(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        """Setup the user interface with modern spacing"""
+        """Setup the user interface with compact professional spacing"""
         layout = QVBoxLayout(self)
-        # Use modern spacing tokens (xl = 24px)
-        spacing = int(SPACING['xl'].replace('px', ''))
+        # Use compact spacing tokens (base = 12px)
+        spacing = int(SPACING['base'].replace('px', ''))
         layout.setContentsMargins(spacing, spacing, spacing, spacing)
-        layout.setSpacing(int(SPACING['md'].replace('px', '')))  # 12px between elements
+        layout.setSpacing(int(SPACING['sm'].replace('px', '')))  # 4px between elements
 
-        # Icon label (using Unicode icons)
+        # Icon label (using Unicode icons) - compact size
         self.icon_label = QLabel("🎵")
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_font = QFont()
-        icon_font.setPointSize(48)
+        icon_font.setPointSize(32)  # Reduced from 48
         self.icon_label.setFont(icon_font)
         layout.addWidget(self.icon_label)
 
@@ -59,8 +59,8 @@ class DropZoneWidget(QWidget):
         # Apply initial styling
         self.apply_normal_style()
 
-        # Set minimum size - compact modern design
-        self.setMinimumHeight(180)
+        # Set minimum size - compact professional design
+        self.setMinimumHeight(120)
 
     def apply_normal_style(self):
         """Apply normal state styling with modern design"""

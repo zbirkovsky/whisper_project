@@ -5,7 +5,8 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextEdit, QStatusBar, QSplitter,
-    QListWidget, QFileDialog, QListWidgetItem, QProgressBar, QMessageBox
+    QListWidget, QFileDialog, QListWidgetItem, QProgressBar, QMessageBox,
+    QComboBox, QLabel
 )
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QFont, QAction, QKeySequence
@@ -42,7 +43,7 @@ class MainWindow(QMainWindow):
     def setup_ui(self):
         """Initialize UI components"""
         self.setWindowTitle("CloudCall Transcription")
-        self.setMinimumSize(1100, 750)  # Slightly larger for modern layout
+        self.setMinimumSize(900, 600)  # Compact professional size
 
         # Menu bar
         self.create_menu_bar()
@@ -51,14 +52,14 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
-        # Modern spacing using design tokens (20px for main content)
-        main_layout.setSpacing(int(SPACING['lg'].replace('px', '')))
+        # Compact spacing using design tokens
+        main_layout.setSpacing(int(SPACING['md'].replace('px', '')))  # 8px
         main_layout.setContentsMargins(
-            int(SPACING['xl'].replace('px', '')),
-            int(SPACING['lg'].replace('px', '')),
-            int(SPACING['xl'].replace('px', '')),
-            int(SPACING['lg'].replace('px', ''))
-        )  # 24px sides, 20px top/bottom
+            int(SPACING['base'].replace('px', '')),
+            int(SPACING['md'].replace('px', '')),
+            int(SPACING['base'].replace('px', '')),
+            int(SPACING['md'].replace('px', ''))
+        )  # 12px sides, 8px top/bottom
 
         # Command bar
         command_bar = self.create_command_bar()
@@ -82,8 +83,8 @@ class MainWindow(QMainWindow):
         self.transcript_text = TranscriptWidget()
         splitter.addWidget(self.transcript_text)
 
-        # Modern proportions: compact drop zone, reasonable queue, spacious transcript
-        splitter.setSizes([120, 280, 400])
+        # Compact proportions: minimal drop zone, efficient queue, focus on transcript
+        splitter.setSizes([80, 200, 400])
         main_layout.addWidget(splitter)
 
         # Status bar
@@ -205,8 +206,8 @@ class MainWindow(QMainWindow):
         """Create command bar with primary actions"""
         widget = QWidget()
         layout = QHBoxLayout(widget)
-        # Modern spacing between buttons (12px)
-        layout.setSpacing(int(SPACING['md'].replace('px', '')))
+        # Compact spacing between buttons (4px)
+        layout.setSpacing(int(SPACING['sm'].replace('px', '')))
         layout.setContentsMargins(0, 0, 0, 0)
 
         btn_open = QPushButton(self.icon_manager.get_button_icon('folder-open'), " Open Files")
@@ -230,6 +231,50 @@ class MainWindow(QMainWindow):
         layout.addWidget(btn_save_srt)
 
         layout.addStretch()
+
+        # Device selector (GPU/CPU toggle)
+        device_label = QLabel("Device:")
+        device_label.setStyleSheet("color: #757575; font-weight: 500;")
+        layout.addWidget(device_label)
+
+        self.device_combo = QComboBox()
+        self.device_combo.setToolTip("Select processing device (GPU is much faster if available)")
+        self.device_combo.setMinimumWidth(120)
+
+        # Check GPU availability and populate options
+        try:
+            import torch
+            cuda_available = torch.cuda.is_available()
+            if cuda_available:
+                gpu_name = torch.cuda.get_device_name(0)
+                # Shorten GPU name for compact display
+                gpu_display = gpu_name.split('NVIDIA')[-1].strip() if 'NVIDIA' in gpu_name else gpu_name
+                if len(gpu_display) > 20:
+                    gpu_display = gpu_display[:17] + "..."
+                self.device_combo.addItem(f"🎮 GPU ({gpu_display})", "cuda")
+            else:
+                self.device_combo.addItem("🎮 GPU (Not Available)", "cuda_disabled")
+        except Exception as e:
+            logger.warning(f"Could not check GPU availability: {e}")
+            self.device_combo.addItem("🎮 GPU (Not Available)", "cuda_disabled")
+
+        self.device_combo.addItem("💻 CPU", "cpu")
+
+        # Set current device from config
+        current_device = self.config.validate_device()
+        if current_device == "cuda":
+            self.device_combo.setCurrentIndex(0)
+        else:
+            # Set to CPU (last item)
+            self.device_combo.setCurrentIndex(self.device_combo.count() - 1)
+
+        # Disable GPU option if not available
+        if self.device_combo.itemData(0) == "cuda_disabled":
+            model = self.device_combo.model()
+            model.item(0).setEnabled(False)
+
+        self.device_combo.currentIndexChanged.connect(self.on_device_changed)
+        layout.addWidget(self.device_combo)
 
         btn_clear = QPushButton(self.icon_manager.get_button_icon('clear'), " Clear")
         btn_clear.setToolTip("Clear transcript display")
@@ -417,6 +462,43 @@ class MainWindow(QMainWindow):
                 setattr(self.config, key, value)
 
         self.status_bar.showMessage("Settings applied successfully! Restart for some changes to take effect.")
+
+    def on_device_changed(self, index):
+        """Handle device change (GPU/CPU toggle)"""
+        device_data = self.device_combo.itemData(index)
+
+        # Ignore if trying to select disabled GPU
+        if device_data == "cuda_disabled":
+            return
+
+        new_device = device_data
+        old_device = self.config.device
+
+        if new_device == old_device:
+            return
+
+        logger.info(f"Switching device from {old_device} to {new_device}")
+
+        # Update config
+        self.config.device = new_device
+
+        # Update compute_type based on device
+        if new_device == "cuda":
+            self.config.compute_type = "float16"  # GPU uses float16 for speed
+        else:
+            self.config.compute_type = "float32"  # CPU uses float32 for quality
+
+        # Update transcription engine device
+        self.viewmodel.engine.device = new_device
+        self.viewmodel.engine.compute_type = self.config.compute_type
+
+        # Unload current models so they reload with new device next time
+        self.viewmodel.engine.unload_models()
+
+        # Update status bar
+        device_name = "GPU" if new_device == "cuda" else "CPU"
+        self.status_bar.showMessage(f"Switched to {device_name}. Models will reload on next transcription.", 5000)
+        logger.info(f"Device switched to {new_device}, compute_type: {self.config.compute_type}")
 
     def copy_transcript(self):
         """Copy transcript to clipboard"""

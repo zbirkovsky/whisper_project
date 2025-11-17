@@ -14,7 +14,7 @@ organization = "CloudCall"
 whisper_model = "large-v3"  # Default model for auto-detection
 compute_type = "float32"  # float32 for best CPU quality (int8 degrades quality)
 batch_size = 8  # REDUCED from 16 for better quality on CPU
-device = "cpu"  # CPU mode (CUDA not available)
+device = "cpu"  # CPU mode (RTX 5090 not yet supported by PyTorch - will be available in future)
 language = "en"  # ENGLISH ONLY for bulletproof accuracy (en=English, cs=Czech, auto=detect)
 
 # Language-specific models for optimal quality

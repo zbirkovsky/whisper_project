@@ -78,17 +78,17 @@ class FileQueueItem(QFrame):
         """)
         top_row.addWidget(self.status_label)
 
-        # Cancel button - modern circular button
+        # Cancel button - compact circular button
         self.cancel_btn = QPushButton("✕")
-        self.cancel_btn.setFixedSize(28, 28)
+        self.cancel_btn.setFixedSize(24, 24)
         self.cancel_btn.setToolTip("Cancel transcription")
         self.cancel_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
                 border: none;
-                border-radius: 14px;  /* Circle */
+                border-radius: 12px;  /* Circle */
                 color: #757575;  /* neutral_600 */
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
@@ -101,13 +101,13 @@ class FileQueueItem(QFrame):
 
         layout.addLayout(top_row)
 
-        # Progress bar - modern thin design
+        # Progress bar - compact thin design
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)  # Hide text for cleaner look
-        self.progress_bar.setFixedHeight(8)  # Thin modern progress bar
+        self.progress_bar.setFixedHeight(6)  # Compact thin progress bar
         self.progress_bar.setStyleSheet(f"""
             QProgressBar {{
                 border: none;
@@ -242,19 +242,31 @@ class FileQueueWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # Header
+        # Header - compact professional styling
         header = QWidget()
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(8, 8, 8, 8)
+        # Compact header padding (4px = sm)
+        padding = int(SPACING['sm'].replace('px', ''))
+        header_layout.setContentsMargins(padding * 2, padding, padding * 2, padding)
 
         title = QLabel("File Queue")
-        title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        title.setStyleSheet(f"""
+            font-family: {TYPOGRAPHY['font_primary']};
+            font-size: {TYPOGRAPHY['size_lg']};
+            font-weight: {TYPOGRAPHY['weight_semibold']};
+            color: #212121;  /* neutral_900 */
+        """)
         header_layout.addWidget(title)
 
         header_layout.addStretch()
 
         self.count_label = QLabel("0 files")
-        self.count_label.setStyleSheet("color: #666;")
+        self.count_label.setStyleSheet(f"""
+            font-family: {TYPOGRAPHY['font_primary']};
+            font-size: {TYPOGRAPHY['size_sm']};
+            font-weight: {TYPOGRAPHY['weight_regular']};
+            color: #757575;  /* neutral_600 */
+        """)
         header_layout.addWidget(self.count_label)
 
         layout.addWidget(header)
@@ -264,11 +276,13 @@ class FileQueueWidget(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
 
-        # Container for file items
+        # Container for file items - compact spacing
         self.container = QWidget()
         self.container_layout = QVBoxLayout(self.container)
-        self.container_layout.setSpacing(4)
-        self.container_layout.setContentsMargins(4, 4, 4, 4)
+        # Use xs spacing (2px) for very compact layout
+        compact_spacing = int(SPACING['xs'].replace('px', ''))
+        self.container_layout.setSpacing(compact_spacing)
+        self.container_layout.setContentsMargins(compact_spacing, compact_spacing, compact_spacing, compact_spacing)
         self.container_layout.addStretch()
 
         scroll.setWidget(self.container)
