@@ -66,11 +66,35 @@ class RecordingDialog(QDialog):
         """)
         sources_layout = QVBoxLayout(sources_group)
 
-        self.mic_check = QCheckBox("🎤 Record Microphone")
+        # Microphone selection
+        mic_layout = QHBoxLayout()
+        self.mic_check = QCheckBox("🎤 Record Microphone:")
         self.mic_check.setChecked(True)
         self.mic_check.setToolTip("Capture audio from your microphone")
         self.mic_check.setStyleSheet("font-size: 13px; padding: 5px;")
-        sources_layout.addWidget(self.mic_check)
+        self.mic_check.stateChanged.connect(self.on_mic_check_changed)
+        mic_layout.addWidget(self.mic_check)
+
+        self.mic_combo = QComboBox()
+        self.mic_combo.setMinimumWidth(300)
+        self.mic_combo.setToolTip("Select microphone device")
+        self.mic_combo.setStyleSheet("""
+            QComboBox {
+                padding: 5px;
+                border: 2px solid #e1e4e8;
+                border-radius: 4px;
+                font-size: 12px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #0078d4;
+            }
+        """)
+        mic_layout.addWidget(self.mic_combo, 1)
+        sources_layout.addLayout(mic_layout)
+
+        # Populate microphone list
+        self.populate_microphones()
 
         self.system_check = QCheckBox("🔊 Record System Audio (Loopback)")
         self.system_check.setChecked(True)
@@ -179,11 +203,11 @@ class RecordingDialog(QDialog):
         # Language combo box
         self.language_combo = QComboBox()
         self.language_combo.addItems([
-            "🌐 Auto-detect language",
+            "🇬🇧 English (Best Quality)",
             "🇨🇿 Czech (Čeština)",
-            "🇬🇧 English"
+            "🌐 Auto-detect language"
         ])
-        self.language_combo.setCurrentIndex(0)  # Default to auto
+        self.language_combo.setCurrentIndex(0)  # Default to English for best quality
         self.language_combo.setToolTip("Choose transcription language or let the system auto-detect")
         self.language_combo.setStyleSheet("""
             QComboBox {
@@ -375,6 +399,64 @@ class RecordingDialog(QDialog):
         self.viewmodel.recording_completed.connect(self.on_recording_complete)
         self.viewmodel.error_occurred.connect(self.on_error)
 
+    def populate_microphones(self):
+        """Populate microphone dropdown with available devices"""
+        from transcription_app.core.audio_recorder import AudioRecorder
+
+        self.mic_combo.clear()
+
+        # Get list of microphones
+        recorder = AudioRecorder(self.viewmodel.engine.config)
+        devices = recorder.list_devices()
+        recorder.cleanup()
+
+        # Filter to input devices only and sort by preference
+        input_devices = [d for d in devices if d['max_inputs'] > 0 and not d['is_loopback']]
+
+        # Find default device
+        default_index = None
+        try:
+            import pyaudiowpatch as pyaudio
+            p = pyaudio.PyAudio()
+            default_info = p.get_default_input_device_info()
+            default_index = default_info['index']
+            p.terminate()
+        except:
+            pass
+
+        # Sort: default first, then HyperX/professional mics, then others
+        def mic_priority(device):
+            name = device['name'].lower()
+            if device['index'] == default_index:
+                return (0, device['name'])  # Default first
+            elif 'hyperx' in name or 'quadcast' in name:
+                return (1, device['name'])  # Professional mics second
+            elif 'nvidia broadcast' in name:
+                return (3, device['name'])  # NVIDIA Broadcast last
+            else:
+                return (2, device['name'])  # Others in between
+
+        input_devices.sort(key=mic_priority)
+
+        # Add to combo box
+        for device in input_devices:
+            label = device['name']
+            if device['index'] == default_index:
+                label += " [DEFAULT]"
+
+            # Add device info
+            label += f" ({device['max_inputs']}ch, {int(device['default_sample_rate'])}Hz)"
+
+            self.mic_combo.addItem(label, device['index'])
+
+        # Select default or first
+        if self.mic_combo.count() > 0:
+            self.mic_combo.setCurrentIndex(0)
+
+    def on_mic_check_changed(self, state):
+        """Enable/disable microphone combo when checkbox changes"""
+        self.mic_combo.setEnabled(self.mic_check.isChecked())
+
     def start_recording(self):
         """Start recording"""
         record_mic = self.mic_check.isChecked()
@@ -385,6 +467,9 @@ class RecordingDialog(QDialog):
             self.status_label.setText("⚠️ Please select at least one audio source")
             self.status_label.setStyleSheet("color: #dc3545; font-weight: bold; font-size: 14px;")
             return
+
+        # Get selected microphone index
+        selected_mic_index = self.mic_combo.currentData() if record_mic else None
 
         # Save selected language for later use when transcribing the recorded file
         self.selected_language = self.get_selected_language()
@@ -414,7 +499,8 @@ class RecordingDialog(QDialog):
         meeting_name = self.get_meeting_name()
 
         # Start actual recording with a very long duration (2 hours max)
-        self.viewmodel.start_recording(7200, record_mic, record_system, meeting_name)
+        # Pass the selected microphone index
+        self.viewmodel.start_recording(7200, record_mic, record_system, meeting_name, selected_mic_index)
 
     def pause_recording(self):
         """Pause/Resume recording"""
@@ -565,12 +651,12 @@ class RecordingDialog(QDialog):
         """Get the selected language code from dropdown"""
         index = self.language_combo.currentIndex()
         if index == 0:
-            return "auto"
+            return "en"  # English (default)
         elif index == 1:
             return "cs"  # Czech
         elif index == 2:
-            return "en"  # English
-        return "auto"  # Fallback
+            return "auto"  # Auto-detect
+        return "en"  # Fallback to English
 
     def open_recordings_folder(self):
         """Open the recordings folder in file explorer"""

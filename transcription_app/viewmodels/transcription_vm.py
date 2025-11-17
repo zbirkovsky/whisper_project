@@ -157,12 +157,14 @@ class TranscriptionViewModel(QObject):
 
     @Slot(int, bool, bool)
     @Slot(int, bool, bool, str)
+    @Slot(int, bool, bool, str, object)
     def start_recording(
         self,
         duration_seconds: int,
         record_mic: bool = True,
         record_system: bool = True,
-        meeting_name: str = None
+        meeting_name: str = None,
+        mic_index: int = None
     ):
         """
         Start audio recording
@@ -172,10 +174,11 @@ class TranscriptionViewModel(QObject):
             record_mic: Whether to record microphone
             record_system: Whether to record system audio
             meeting_name: Optional meeting name for filename
+            mic_index: Optional microphone device index (if None, uses default)
         """
         logger.info(
             f"Starting recording: {duration_seconds}s, "
-            f"mic={record_mic}, system={record_system}, meeting={meeting_name}"
+            f"mic={record_mic}, system={record_system}, meeting={meeting_name}, mic_index={mic_index}"
         )
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -191,7 +194,13 @@ class TranscriptionViewModel(QObject):
 
         output_file = self.engine.config.recordings_dir / filename
 
-        mic_index = self.recorder.get_default_microphone() if record_mic else None
+        # Use provided mic_index or get default
+        if record_mic:
+            if mic_index is None:
+                mic_index = self.recorder.get_default_microphone()
+        else:
+            mic_index = None
+
         loopback_index = self.recorder.get_loopback_device() if record_system else None
 
         worker = RecordingWorker(

@@ -69,6 +69,33 @@ class TranscriptionEngine(QObject):
             import os
             os.environ['HF_HUB_OFFLINE'] = '0'
 
+            # High-quality ASR options to prevent hallucinations and improve accuracy
+            asr_options = {
+                # Anti-hallucination settings (CRITICAL)
+                "condition_on_previous_text": False,     # Prevent hallucination chaining
+                "repetition_penalty": 1.2,               # Penalize repetitive text (>1 = less repetition)
+                "no_repeat_ngram_size": 3,               # Block 3-word phrase loops
+
+                # Quality & retry settings
+                "temperatures": [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],  # Temperature fallback on failure
+                "no_speech_threshold": 0.6,              # Treat as silence if prob > 0.6
+                "compression_ratio_threshold": 2.4,      # Reject if compression ratio > 2.4
+                "log_prob_threshold": -1.0,              # Reject if avg log prob < -1.0
+
+                # Context for better accuracy
+                "initial_prompt": "This is a professional conversation in clear English. Transcribe exactly what is said, including filler words like um and uh.",
+            }
+
+            # VAD options with reduced thresholds to catch full words
+            vad_options = {
+                "chunk_size": 30,
+                "vad_onset": 0.300,      # Reduced from 0.500 - catch word starts
+                "vad_offset": 0.200,     # Reduced from 0.363 - catch word endings
+            }
+
+            logger.info(f"ASR options: {asr_options}")
+            logger.info(f"VAD options: {vad_options}")
+
             # Try loading with retries for HuggingFace server errors
             max_retries = 3
             for attempt in range(max_retries):
@@ -77,7 +104,11 @@ class TranscriptionEngine(QObject):
                         desired_model,
                         device=self.device,
                         compute_type=self.compute_type,
-                        download_root=str(self.config.models_dir)
+                        download_root=str(self.config.models_dir),
+                        vad_method="silero",        # Use Silero VAD for compatibility
+                        asr_options=asr_options,    # Quality settings
+                        vad_options=vad_options,    # Better speech detection
+                        language="en",              # Force English
                     )
                     self.current_model_name = desired_model
                     logger.info(f"Whisper model loaded successfully: {desired_model}")
@@ -180,12 +211,14 @@ class TranscriptionWorker(QThread):
             self.progress_updated.emit(20, "Transcribing audio...")
             logger.info("Starting transcription")
 
-            # Handle language parameter
+            # Handle language parameter - WhisperX has limited API
             transcribe_options = {
-                'batch_size': self.engine.config.batch_size
+                'batch_size': self.engine.config.batch_size,
             }
             if self.language != "auto":
                 transcribe_options['language'] = self.language
+
+            logger.info(f"Transcription options: {transcribe_options}")
 
             result = self.engine.model.transcribe(
                 audio,

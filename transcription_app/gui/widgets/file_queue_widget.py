@@ -1,5 +1,5 @@
 """
-Enhanced file queue widget with progress bars and controls
+Enhanced file queue widget with modern card styling and controls
 """
 from pathlib import Path
 from PySide6.QtWidgets import (
@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont
 from transcription_app.gui.styles import AnimationHelper
+from transcription_app.gui.styles.stylesheet_manager import SPACING, RADIUS, TYPOGRAPHY
 
 
 class FileQueueItem(QFrame):
@@ -25,86 +26,106 @@ class FileQueueItem(QFrame):
         self.setup_ui()
 
     def setup_ui(self):
-        """Setup the UI for this file item"""
+        """Setup the UI for this file item with modern card styling"""
         self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setStyleSheet("""
-            FileQueueItem {
-                background-color: white;
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-                margin: 2px;
-                padding: 8px;
-            }
-            FileQueueItem:hover {
-                border-color: #0078d4;
-            }
+        # Modern card with subtle shadow and hover effect
+        self.setStyleSheet(f"""
+            FileQueueItem {{
+                background-color: #FFFFFF;  /* surface_1 */
+                border: 1px solid #E0E0E0;  /* neutral_300 */
+                border-radius: {RADIUS['md']};
+                margin: {SPACING['xs']};
+                padding: {SPACING['md']};
+            }}
+            FileQueueItem:hover {{
+                border-color: #2196F3;  /* primary_500 */
+                background-color: #FAFAFA;  /* surface_1 hover */
+            }}
         """)
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(8)
-        layout.setContentsMargins(8, 8, 8, 8)
+        # Use design tokens for spacing
+        layout.setSpacing(int(SPACING['sm'].replace('px', '')))
+        layout.setContentsMargins(
+            int(SPACING['md'].replace('px', '')),
+            int(SPACING['md'].replace('px', '')),
+            int(SPACING['md'].replace('px', '')),
+            int(SPACING['md'].replace('px', ''))
+        )
 
         # Top row: filename and controls
         top_row = QHBoxLayout()
 
-        # File icon and name
+        # File icon and name - modern typography
         self.name_label = QLabel(self.file_id)
-        self.name_label.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.name_label.setStyleSheet(f"""
+            font-family: {TYPOGRAPHY['font_primary']};
+            font-size: {TYPOGRAPHY['size_base']};
+            font-weight: {TYPOGRAPHY['weight_semibold']};
+            color: #212121;  /* neutral_900 */
+        """)
         top_row.addWidget(self.name_label)
 
         top_row.addStretch()
 
-        # Status label
+        # Status label - modern typography
         self.status_label = QLabel("Waiting...")
-        self.status_label.setStyleSheet("color: #666;")
+        self.status_label.setStyleSheet(f"""
+            font-family: {TYPOGRAPHY['font_primary']};
+            font-size: {TYPOGRAPHY['size_sm']};
+            font-weight: {TYPOGRAPHY['weight_regular']};
+            color: #757575;  /* neutral_600 */
+        """)
         top_row.addWidget(self.status_label)
 
-        # Cancel button
+        # Cancel button - modern circular button
         self.cancel_btn = QPushButton("✕")
-        self.cancel_btn.setFixedSize(24, 24)
+        self.cancel_btn.setFixedSize(28, 28)
         self.cancel_btn.setToolTip("Cancel transcription")
-        self.cancel_btn.setStyleSheet("""
-            QPushButton {
+        self.cancel_btn.setStyleSheet(f"""
+            QPushButton {{
                 background-color: transparent;
                 border: none;
-                color: #666;
+                border-radius: 14px;  /* Circle */
+                color: #757575;  /* neutral_600 */
+                font-size: 16px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #f0f0f0;
-                color: #d13438;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: #FFEBEE;  /* error_light */
+                color: #F44336;  /* error_main */
+            }}
         """)
         self.cancel_btn.clicked.connect(lambda: self.cancel_clicked.emit(self.file_id))
         top_row.addWidget(self.cancel_btn)
 
         layout.addLayout(top_row)
 
-        # Progress bar
+        # Progress bar - modern thin design
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setTextVisible(True)
-        self.progress_bar.setFixedHeight(20)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #e0e0e0;
-                border-radius: 3px;
-                text-align: center;
-                background-color: #f5f5f5;
-            }
-            QProgressBar::chunk {
-                background-color: #0078d4;
-                border-radius: 2px;
-            }
+        self.progress_bar.setTextVisible(False)  # Hide text for cleaner look
+        self.progress_bar.setFixedHeight(8)  # Thin modern progress bar
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                border: none;
+                border-radius: {RADIUS['sm']};
+                background-color: #E0E0E0;  /* neutral_300 */
+            }}
+            QProgressBar::chunk {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #1E88E5, stop:1 #2196F3);  /* primary gradient */
+                border-radius: {RADIUS['sm']};
+            }}
         """)
         layout.addWidget(self.progress_bar)
 
         # Bottom row: file info
         info_row = QHBoxLayout()
 
-        # File size (if we can get it)
+        # File size (if we can get it) - modern typography
         try:
             file_size = Path(self.file_path).stat().st_size
             size_str = self._format_size(file_size)
@@ -112,14 +133,24 @@ class FileQueueItem(QFrame):
         except:
             self.size_label = QLabel("Unknown size")
 
-        self.size_label.setStyleSheet("color: #999; font-size: 10px;")
+        self.size_label.setStyleSheet(f"""
+            font-family: {TYPOGRAPHY['font_primary']};
+            font-size: {TYPOGRAPHY['size_xs']};
+            font-weight: {TYPOGRAPHY['weight_regular']};
+            color: #9E9E9E;  /* neutral_500 */
+        """)
         info_row.addWidget(self.size_label)
 
         info_row.addStretch()
 
-        # Percentage label
+        # Percentage label - modern typography
         self.percent_label = QLabel("0%")
-        self.percent_label.setStyleSheet("color: #666; font-size: 10px;")
+        self.percent_label.setStyleSheet(f"""
+            font-family: {TYPOGRAPHY['font_mono']};  /* Monospace for numbers */
+            font-size: {TYPOGRAPHY['size_xs']};
+            font-weight: {TYPOGRAPHY['weight_medium']};
+            color: #757575;  /* neutral_600 */
+        """)
         info_row.addWidget(self.percent_label)
 
         layout.addLayout(info_row)
@@ -144,23 +175,32 @@ class FileQueueItem(QFrame):
         self.status_label.setText(status)
         self.percent_label.setText(f"{percentage}%")
 
-        # Change colors based on status
+        # Change colors based on status using semantic colors
         if percentage == 100:
-            self.status_label.setStyleSheet("color: #107c10; font-weight: bold;")
+            self.status_label.setStyleSheet(f"""
+                font-family: {TYPOGRAPHY['font_primary']};
+                font-size: {TYPOGRAPHY['size_sm']};
+                font-weight: {TYPOGRAPHY['weight_semibold']};
+                color: #4CAF50;  /* success_main */
+            """)
             self.cancel_btn.setVisible(False)
         elif "error" in status.lower():
-            self.status_label.setStyleSheet("color: #d13438; font-weight: bold;")
-            self.progress_bar.setStyleSheet("""
-                QProgressBar {
-                    border: 1px solid #e0e0e0;
-                    border-radius: 3px;
-                    text-align: center;
-                    background-color: #f5f5f5;
-                }
-                QProgressBar::chunk {
-                    background-color: #d13438;
-                    border-radius: 2px;
-                }
+            self.status_label.setStyleSheet(f"""
+                font-family: {TYPOGRAPHY['font_primary']};
+                font-size: {TYPOGRAPHY['size_sm']};
+                font-weight: {TYPOGRAPHY['weight_semibold']};
+                color: #F44336;  /* error_main */
+            """)
+            self.progress_bar.setStyleSheet(f"""
+                QProgressBar {{
+                    border: none;
+                    border-radius: {RADIUS['sm']};
+                    background-color: #E0E0E0;
+                }}
+                QProgressBar::chunk {{
+                    background-color: #F44336;  /* error_main */
+                    border-radius: {RADIUS['sm']};
+                }}
             """)
 
     def mark_complete(self):

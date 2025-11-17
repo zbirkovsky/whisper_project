@@ -85,9 +85,9 @@ def get_best_model_for_language(language: str) -> str:
             logger.warning("Czech model not found, using generic large-v3")
             return 'large-v3'
     elif language == 'en':
-        # Use turbo for English - faster with similar quality
-        logger.info("Using turbo model for English")
-        return 'large-v3-turbo'
+        # Use large-v3 for English (turbo has Windows symlink issues)
+        logger.info("Using large-v3 model for English with language forced")
+        return 'large-v3'
     else:
         # Auto-detect - use generic model
         logger.info("Using generic large-v3 with auto-detection")

@@ -16,6 +16,7 @@ from transcription_app.gui.widgets.file_queue_widget import FileQueueWidget
 from transcription_app.gui.widgets.settings_dialog import SettingsDialog
 from transcription_app.gui.widgets.transcript_widget import TranscriptWidget
 from transcription_app.gui.styles import StyleSheetManager, Theme, get_icon_manager, AnimationHelper
+from transcription_app.gui.styles.stylesheet_manager import SPACING
 from transcription_app.core.transcription_engine import format_transcript_text, format_transcript_srt
 from transcription_app.utils.logger import get_logger
 
@@ -41,7 +42,7 @@ class MainWindow(QMainWindow):
     def setup_ui(self):
         """Initialize UI components"""
         self.setWindowTitle("CloudCall Transcription")
-        self.setMinimumSize(1000, 700)
+        self.setMinimumSize(1100, 750)  # Slightly larger for modern layout
 
         # Menu bar
         self.create_menu_bar()
@@ -50,8 +51,14 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
-        main_layout.setSpacing(10)
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        # Modern spacing using design tokens (20px for main content)
+        main_layout.setSpacing(int(SPACING['lg'].replace('px', '')))
+        main_layout.setContentsMargins(
+            int(SPACING['xl'].replace('px', '')),
+            int(SPACING['lg'].replace('px', '')),
+            int(SPACING['xl'].replace('px', '')),
+            int(SPACING['lg'].replace('px', ''))
+        )  # 24px sides, 20px top/bottom
 
         # Command bar
         command_bar = self.create_command_bar()
@@ -75,7 +82,8 @@ class MainWindow(QMainWindow):
         self.transcript_text = TranscriptWidget()
         splitter.addWidget(self.transcript_text)
 
-        splitter.setSizes([150, 320, 350])
+        # Modern proportions: compact drop zone, reasonable queue, spacious transcript
+        splitter.setSizes([120, 280, 400])
         main_layout.addWidget(splitter)
 
         # Status bar
@@ -197,7 +205,8 @@ class MainWindow(QMainWindow):
         """Create command bar with primary actions"""
         widget = QWidget()
         layout = QHBoxLayout(widget)
-        layout.setSpacing(10)
+        # Modern spacing between buttons (12px)
+        layout.setSpacing(int(SPACING['md'].replace('px', '')))
         layout.setContentsMargins(0, 0, 0, 0)
 
         btn_open = QPushButton(self.icon_manager.get_button_icon('folder-open'), " Open Files")
