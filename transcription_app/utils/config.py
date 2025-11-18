@@ -2,7 +2,6 @@
 Application configuration using Pydantic
 Supports both .env files and settings.toml
 """
-import os
 import toml
 from pathlib import Path
 from typing import Optional
@@ -85,6 +84,17 @@ class AppConfig(BaseSettings):
         description="Audio format"
     )
 
+    # Audio gain boost settings
+    mixed_rms_threshold: float = Field(default=500.0)
+    mixed_target_rms: float = Field(default=400.0)
+    mixed_max_boost: float = Field(default=2.5)
+    mixed_use_soft_clipping: bool = Field(default=True)
+    mic_only_rms_threshold: float = Field(default=1000.0)
+    mic_only_target_rms: float = Field(default=2000.0)
+    mic_only_max_boost: float = Field(default=3.0)
+    mic_only_use_soft_clipping: bool = Field(default=False)
+    rms_floor: float = Field(default=100.0)
+
     # Diarization settings
     diarization_enabled: bool = Field(
         default=True,
@@ -120,6 +130,15 @@ class AppConfig(BaseSettings):
         default=True,
         description="Automatically detect Teams meeting names for recordings"
     )
+
+    # UI dimensions and layout
+    window_min_width: int = Field(default=1100)
+    window_min_height: int = Field(default=600)
+    sidebar_min_width: int = Field(default=200)
+    sidebar_max_width: int = Field(default=350)
+    file_queue_min_height: int = Field(default=100)
+    vertical_splitter_sizes: list[int] = Field(default=[60, 120, 520])
+    horizontal_splitter_sizes: list[int] = Field(default=[250, 650])
 
     # Logging
     log_level: str = Field(

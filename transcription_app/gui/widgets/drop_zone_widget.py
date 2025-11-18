@@ -4,7 +4,7 @@ Drag-and-drop zone widget for audio files with modern 2025 design
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QFont
-from transcription_app.gui.styles.stylesheet_manager import SPACING, RADIUS, TYPOGRAPHY
+from transcription_app.gui.styles.stylesheet_manager import SPACING, RADIUS, TYPOGRAPHY, StyleSheetManager, Theme
 
 
 class DropZoneWidget(QWidget):
@@ -15,6 +15,10 @@ class DropZoneWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
+        # Get theme from parent's style manager if available
+        self.current_theme = Theme.DARK  # Default
+        if hasattr(parent, 'style_manager'):
+            self.current_theme = parent.style_manager.current_theme
         self.setup_ui()
 
     def setup_ui(self):
@@ -23,35 +27,34 @@ class DropZoneWidget(QWidget):
         # Use compact spacing tokens (base = 12px)
         spacing = int(SPACING['base'].replace('px', ''))
         layout.setContentsMargins(spacing, spacing, spacing, spacing)
-        layout.setSpacing(int(SPACING['sm'].replace('px', '')))  # 4px between elements
+        layout.setSpacing(int(SPACING['xs'].replace('px', '')))  # 2px between elements - very compact
 
-        # Icon label (using Unicode icons) - compact size
-        self.icon_label = QLabel("🎵")
+        # Icon label - smaller, cleaner
+        self.icon_label = QLabel("📁")
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_font = QFont()
-        icon_font.setPointSize(32)  # Reduced from 48
+        icon_font.setPointSize(20)  # Much smaller for compact design
         self.icon_label.setFont(icon_font)
         layout.addWidget(self.icon_label)
 
-        # Main text label - using typography tokens
+        # Main text label - compact and readable
         self.label = QLabel("Drop Audio Files Here")
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label.setWordWrap(True)
-        # Use 2xl size (24px) with semibold weight
         self.label.setStyleSheet(f"""
             font-family: {TYPOGRAPHY['font_primary']};
-            font-size: {TYPOGRAPHY['size_2xl']};
+            font-size: 16px;
             font-weight: {TYPOGRAPHY['weight_semibold']};
         """)
         layout.addWidget(self.label)
 
-        # Subtitle label - using typography tokens
-        self.subtitle = QLabel("or click 'Open Files' to browse\n\nSupported: MP3, WAV, M4A, FLAC, MP4, OGG, WMA, AAC")
+        # Subtitle label - very compact
+        self.subtitle = QLabel("MP3, WAV, M4A, FLAC, MP4...")
         self.subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.subtitle.setWordWrap(True)
         self.subtitle.setStyleSheet(f"""
             font-family: {TYPOGRAPHY['font_primary']};
-            font-size: {TYPOGRAPHY['size_sm']};
+            font-size: 11px;
             font-weight: {TYPOGRAPHY['weight_regular']};
         """)
         layout.addWidget(self.subtitle)
@@ -59,56 +62,78 @@ class DropZoneWidget(QWidget):
         # Apply initial styling
         self.apply_normal_style()
 
-        # Set minimum size - compact professional design
-        self.setMinimumHeight(120)
+        # Set minimum size - very compact
+        self.setMinimumHeight(80)
+
+    def get_theme_colors(self):
+        """Get colors for current theme"""
+        sm = StyleSheetManager(self.current_theme)
+        palette = sm._palette
+        return {
+            'bg_normal': palette.surface_2,
+            'bg_hover': palette.surface_3,
+            'border_normal': palette.neutral_500,
+            'border_hover': palette.primary_500,
+            'icon_normal': palette.neutral_300,
+            'icon_hover': palette.primary_500,
+            'text_normal': palette.text_primary,
+            'text_hover': palette.primary_50,
+            'subtitle_normal': palette.text_secondary,
+            'subtitle_hover': palette.primary_500,
+        }
 
     def apply_normal_style(self):
-        """Apply normal state styling with modern design"""
-        # Modern flat design with subtle border and clean background
+        """Apply normal state styling - theme aware"""
+        colors = self.get_theme_colors()
         self.setStyleSheet(f"""
             DropZoneWidget {{
-                background-color: #FAFAFA;  /* neutral_50 light */
-                border: 2px dashed #BDBDBD;  /* neutral_400 */
-                border-radius: {RADIUS['lg']};
+                background-color: {colors['bg_normal']};
+                border: 2px dashed {colors['border_normal']};
+                border-radius: {RADIUS['md']};
             }}
         """)
-        self.icon_label.setStyleSheet("color: #9E9E9E;")  # neutral_500
+        self.icon_label.setStyleSheet(f"color: {colors['icon_normal']};")
         self.label.setStyleSheet(f"""
-            color: #212121;  /* neutral_900 */
+            color: {colors['text_normal']};
             font-family: {TYPOGRAPHY['font_primary']};
-            font-size: {TYPOGRAPHY['size_2xl']};
+            font-size: 16px;
             font-weight: {TYPOGRAPHY['weight_semibold']};
         """)
         self.subtitle.setStyleSheet(f"""
-            color: #757575;  /* neutral_600 */
+            color: {colors['subtitle_normal']};
             font-family: {TYPOGRAPHY['font_primary']};
-            font-size: {TYPOGRAPHY['size_sm']};
+            font-size: 11px;
             font-weight: {TYPOGRAPHY['weight_regular']};
         """)
 
     def apply_hover_style(self):
-        """Apply hover state styling with modern design"""
-        # Modern hover with primary color accent
+        """Apply hover state styling - theme aware"""
+        colors = self.get_theme_colors()
         self.setStyleSheet(f"""
             DropZoneWidget {{
-                background-color: #E3F2FD;  /* primary_50 - light blue tint */
-                border: 2px solid #2196F3;  /* primary_500 */
-                border-radius: {RADIUS['lg']};
+                background-color: {colors['bg_hover']};
+                border: 2px solid {colors['border_hover']};
+                border-radius: {RADIUS['md']};
             }}
         """)
-        self.icon_label.setStyleSheet("color: #2196F3;")  # primary_500
+        self.icon_label.setStyleSheet(f"color: {colors['icon_hover']};")
         self.label.setStyleSheet(f"""
-            color: #1976D2;  /* primary_700 */
+            color: {colors['text_hover']};
             font-family: {TYPOGRAPHY['font_primary']};
-            font-size: {TYPOGRAPHY['size_2xl']};
+            font-size: 16px;
             font-weight: {TYPOGRAPHY['weight_semibold']};
         """)
         self.subtitle.setStyleSheet(f"""
-            color: #1E88E5;  /* primary_600 */
+            color: {colors['subtitle_hover']};
             font-family: {TYPOGRAPHY['font_primary']};
-            font-size: {TYPOGRAPHY['size_sm']};
+            font-size: 11px;
             font-weight: {TYPOGRAPHY['weight_regular']};
         """)
+
+    def update_theme(self, theme: Theme):
+        """Update widget theme"""
+        self.current_theme = theme
+        self.apply_normal_style()
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         """Handle drag enter event"""

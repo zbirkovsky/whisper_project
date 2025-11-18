@@ -12,13 +12,13 @@ from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QFont, QAction, QKeySequence
 
 from transcription_app.gui.widgets.drop_zone_widget import DropZoneWidget
-from transcription_app.gui.widgets.recording_dialog import RecordingDialog
+from transcription_app.gui.widgets.recording_sidebar import RecordingSidebarWidget
 from transcription_app.gui.widgets.file_queue_widget import FileQueueWidget
 from transcription_app.gui.widgets.settings_dialog import SettingsDialog
 from transcription_app.gui.widgets.transcript_widget import TranscriptWidget
 from transcription_app.gui.styles import StyleSheetManager, Theme, get_icon_manager, AnimationHelper
 from transcription_app.gui.styles.stylesheet_manager import SPACING
-from transcription_app.core.transcription_engine import format_transcript_text, format_transcript_srt
+from transcription_app.core.transcript_exporter import TranscriptExporter
 from transcription_app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,16 +34,24 @@ class MainWindow(QMainWindow):
         self.file_items = {}  # Maps file_id to QListWidgetItem
         self.file_progress = {}  # Maps file_id to QProgressBar
         self.current_result = None  # Store current transcription result
-        self.style_manager = StyleSheetManager(Theme.LIGHT)
+
+        # Initialize theme based on config
+        initial_theme = Theme.DARK if config.theme == "dark" else Theme.LIGHT
+        if config.theme == "auto":
+            # TODO: Detect system theme preference
+            initial_theme = Theme.DARK  # Default to dark for now
+
+        self.style_manager = StyleSheetManager(initial_theme)
         self.icon_manager = get_icon_manager()
+        self.exporter = TranscriptExporter()  # Transcript export manager
         self.setup_ui()
         self.connect_signals()
-        logger.info("MainWindow initialized")
+        logger.info(f"MainWindow initialized with {initial_theme.value} theme")
 
     def setup_ui(self):
         """Initialize UI components"""
         self.setWindowTitle("CloudCall Transcription")
-        self.setMinimumSize(900, 600)  # Compact professional size
+        self.setMinimumSize(self.config.window_min_width, self.config.window_min_height)
 
         # Menu bar
         self.create_menu_bar()
@@ -65,27 +73,40 @@ class MainWindow(QMainWindow):
         command_bar = self.create_command_bar()
         main_layout.addWidget(command_bar)
 
-        # Main content splitter
-        splitter = QSplitter(Qt.Orientation.Vertical)
+        # Horizontal splitter: sidebar + main content
+        horizontal_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Left: Recording sidebar (compact, resizable)
+        self.recording_sidebar = RecordingSidebarWidget(self.viewmodel, self)
+        self.recording_sidebar.setMinimumWidth(self.config.sidebar_min_width)
+        self.recording_sidebar.setMaximumWidth(self.config.sidebar_max_width)
+        horizontal_splitter.addWidget(self.recording_sidebar)
+
+        # Right: Main content area (vertical splitter)
+        vertical_splitter = QSplitter(Qt.Orientation.Vertical)
 
         # Drop zone
         self.drop_zone = DropZoneWidget()
-        splitter.addWidget(self.drop_zone)
+        vertical_splitter.addWidget(self.drop_zone)
 
         # Enhanced file queue
         self.file_queue = FileQueueWidget()
         self.file_queue.cancel_file.connect(self.cancel_file)
         self.file_queue.remove_file.connect(self.remove_file)
-        self.file_queue.setMinimumHeight(320)  # Show at least 3 items
-        splitter.addWidget(self.file_queue)
+        self.file_queue.setMinimumHeight(self.config.file_queue_min_height)
+        vertical_splitter.addWidget(self.file_queue)
 
         # Transcript display - enhanced widget with syntax highlighting and search
         self.transcript_text = TranscriptWidget()
-        splitter.addWidget(self.transcript_text)
+        vertical_splitter.addWidget(self.transcript_text)
 
-        # Compact proportions: minimal drop zone, efficient queue, focus on transcript
-        splitter.setSizes([80, 200, 400])
-        main_layout.addWidget(splitter)
+        # Proportions: minimal drop zone, compact queue, large transcript focus
+        vertical_splitter.setSizes(self.config.vertical_splitter_sizes)
+        horizontal_splitter.addWidget(vertical_splitter)
+
+        # Set horizontal splitter proportions: sidebar + main content
+        horizontal_splitter.setSizes(self.config.horizontal_splitter_sizes)
+        main_layout.addWidget(horizontal_splitter)
 
         # Status bar
         self.status_bar = QStatusBar()
@@ -108,10 +129,10 @@ class MainWindow(QMainWindow):
         open_action.triggered.connect(self.open_files)
         file_menu.addAction(open_action)
 
-        record_action = QAction("&Record Audio...", self)
+        record_action = QAction("&Focus Recording Sidebar", self)
         record_action.setShortcut(QKeySequence("Ctrl+R"))
-        record_action.setStatusTip("Record audio from microphone and/or system")
-        record_action.triggered.connect(self.start_recording)
+        record_action.setStatusTip("Focus recording controls in left sidebar")
+        record_action.triggered.connect(self.focus_recording_sidebar)
         file_menu.addAction(record_action)
 
         file_menu.addSeparator()
@@ -180,9 +201,10 @@ class MainWindow(QMainWindow):
 
         self.dark_mode_action = QAction("&Dark Mode", self)
         self.dark_mode_action.setCheckable(True)
-        self.dark_mode_action.setChecked(False)
+        # Set initial state based on current theme
+        self.dark_mode_action.setChecked(self.style_manager.current_theme == Theme.DARK)
         self.dark_mode_action.setShortcut(QKeySequence("Ctrl+D"))
-        self.dark_mode_action.setStatusTip("Toggle dark mode theme")
+        self.dark_mode_action.setStatusTip("Toggle between dark and light theme")
         self.dark_mode_action.triggered.connect(self.toggle_dark_mode)
         view_menu.addAction(self.dark_mode_action)
 
@@ -215,10 +237,7 @@ class MainWindow(QMainWindow):
         btn_open.clicked.connect(self.open_files)
         layout.addWidget(btn_open)
 
-        btn_record = QPushButton(self.icon_manager.get_button_icon('record'), " Record Audio")
-        btn_record.setToolTip("Record audio from microphone and/or system")
-        btn_record.clicked.connect(self.start_recording)
-        layout.addWidget(btn_record)
+        # Note: Record Audio button removed - now in left sidebar
 
         btn_save_txt = QPushButton(self.icon_manager.get_button_icon('text'), " Save as TXT")
         btn_save_txt.setToolTip("Save transcript as plain text")
@@ -276,6 +295,34 @@ class MainWindow(QMainWindow):
         self.device_combo.currentIndexChanged.connect(self.on_device_changed)
         layout.addWidget(self.device_combo)
 
+        # Quality preset selector
+        preset_label = QLabel("Quality:")
+        preset_label.setStyleSheet("color: #757575; font-weight: 500;")
+        layout.addWidget(preset_label)
+
+        self.preset_combo = QComboBox()
+        self.preset_combo.setToolTip("Select quality preset (higher quality = slower but more accurate)")
+        self.preset_combo.setMinimumWidth(150)
+
+        # Import presets
+        from transcription_app.utils.quality_presets import get_available_presets
+        presets = get_available_presets(has_gpu=cuda_available)
+
+        # Add presets to dropdown
+        for preset_id, preset in presets.items():
+            self.preset_combo.addItem(preset.name, preset_id)
+
+        # Set default to GPU Balanced (or first available)
+        default_index = 0
+        for i in range(self.preset_combo.count()):
+            if self.preset_combo.itemData(i) == "gpu_balanced":
+                default_index = i
+                break
+        self.preset_combo.setCurrentIndex(default_index)
+
+        self.preset_combo.currentIndexChanged.connect(self.on_preset_changed)
+        layout.addWidget(self.preset_combo)
+
         btn_clear = QPushButton(self.icon_manager.get_button_icon('clear'), " Clear")
         btn_clear.setToolTip("Clear transcript display")
         btn_clear.clicked.connect(self.clear_transcript)
@@ -297,12 +344,22 @@ class MainWindow(QMainWindow):
         self.drop_zone.files_dropped.connect(self.viewmodel.add_files)
 
     def open_files(self):
-        """Open file dialog to select audio files"""
+        """Open file dialog to select audio files using supported formats"""
+        from transcription_app.core.audio_formats import get_audio_format_registry
+
+        # Get supported extensions from registry
+        registry = get_audio_format_registry()
+        extensions = registry.supported_extensions()
+
+        # Build filter string for file dialog
+        ext_list = ' '.join(f"*{ext}" for ext in extensions)
+        file_filter = f"Audio Files ({ext_list});;All Files (*.*)"
+
         files, _ = QFileDialog.getOpenFileNames(
             self,
             "Select Audio Files",
             str(Path.home()),
-            "Audio Files (*.mp3 *.wav *.m4a *.flac *.mp4 *.ogg *.wma *.aac);;All Files (*.*)"
+            file_filter
         )
         if files:
             logger.info(f"User selected {len(files)} files")
@@ -331,7 +388,7 @@ class MainWindow(QMainWindow):
 
     @Slot(str, dict)
     def display_transcript(self, file_id, result):
-        """Display transcription result"""
+        """Display transcription result using export strategies"""
         logger.info(f"Displaying transcript for: {file_id}")
 
         # Store current result
@@ -340,27 +397,38 @@ class MainWindow(QMainWindow):
         # Update queue widget
         self.file_queue.mark_complete(file_id)
 
-        # Format and display transcript
-        transcript_text = format_transcript_text(result, include_timestamps=True)
+        # Format and display transcript using PlainTextExportStrategy
+        from transcription_app.core.export_strategies import PlainTextExportStrategy
+        display_strategy = PlainTextExportStrategy(include_timestamps=True, include_speakers=True)
+
+        # Create temporary file for display content
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w+', suffix='.txt', delete=False, encoding='utf-8') as tmp:
+            tmp_path = Path(tmp.name)
+
+        display_strategy.export(result, tmp_path)
+        with open(tmp_path, 'r', encoding='utf-8') as f:
+            transcript_text = f.read()
+        tmp_path.unlink()  # Clean up temp file
+
         self.transcript_text.set_text(transcript_text)
 
-        # Auto-save transcript to configured transcripts directory
+        # Auto-save transcript to configured transcripts directory (TXT and SRT)
         try:
             file_name = result.get('file_name', file_id)
             base_name = Path(file_name).stem
+            base_path = self.config.transcripts_dir / base_name
 
-            # Save as TXT
-            txt_path = self.config.transcripts_dir / f"{base_name}_transcript.txt"
-            with open(txt_path, 'w', encoding='utf-8') as f:
-                f.write(transcript_text)
-            logger.info(f"Auto-saved transcript to: {txt_path}")
+            # Export to multiple formats using the exporter
+            export_results = self.exporter.export_multiple(
+                result,
+                base_path,
+                ['txt', 'srt']
+            )
 
-            # Save as SRT
-            srt_path = self.config.transcripts_dir / f"{base_name}.srt"
-            srt_content = format_transcript_srt(result)
-            with open(srt_path, 'w', encoding='utf-8') as f:
-                f.write(srt_content)
-            logger.info(f"Auto-saved SRT to: {srt_path}")
+            successful = [fmt for fmt, success in export_results.items() if success]
+            if successful:
+                logger.info(f"Auto-saved transcript formats: {', '.join(successful)}")
         except Exception as e:
             logger.error(f"Failed to auto-save transcript: {e}")
 
@@ -395,14 +463,16 @@ class MainWindow(QMainWindow):
         logger.info(f"Removed from queue: {file_id}")
         self.status_bar.showMessage(f"Removed: {file_id}")
 
-    def start_recording(self):
-        """Show recording dialog"""
-        logger.info("Opening recording dialog")
-        dialog = RecordingDialog(self.viewmodel, self)
-        dialog.exec()
+    def focus_recording_sidebar(self):
+        """Focus the recording sidebar (keyboard shortcut handler)"""
+        logger.info("Focusing recording sidebar")
+        # Ensure sidebar is visible and give focus to start button
+        self.recording_sidebar.setFocus()
+        self.recording_sidebar.start_btn.setFocus()
+        self.status_bar.showMessage("Recording controls ready in left sidebar", 3000)
 
     def save_transcript(self, format_type='txt'):
-        """Save transcript to file"""
+        """Save transcript to file using export strategies"""
         if not self.current_result:
             self.status_bar.showMessage("No transcript available to save")
             return
@@ -410,35 +480,44 @@ class MainWindow(QMainWindow):
         file_name = self.current_result.get('file_name', 'transcript')
         base_name = Path(file_name).stem
 
-        if format_type == 'txt':
-            default_path = Path.home() / f"{base_name}_transcript.txt"
-            file_path, _ = QFileDialog.getSaveFileName(
-                self,
-                "Save Transcript",
-                str(default_path),
-                "Text Files (*.txt)"
-            )
-            if file_path:
-                content = format_transcript_text(self.current_result, include_timestamps=True)
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                logger.info(f"Saved transcript to: {file_path}")
-                self.status_bar.showMessage(f"Saved to {file_path}")
+        # Map format types to file filters and format IDs
+        format_map = {
+            'txt': ("Text Files (*.txt)", '.txt', 'txt'),
+            'srt': ("SRT Subtitle Files (*.srt)", '.srt', 'srt'),
+            'vtt': ("WebVTT Subtitle Files (*.vtt)", '.vtt', 'vtt'),
+            'json': ("JSON Files (*.json)", '.json', 'json'),
+            'md': ("Markdown Files (*.md)", '.md', 'md')
+        }
 
-        elif format_type == 'srt':
-            default_path = Path.home() / f"{base_name}.srt"
-            file_path, _ = QFileDialog.getSaveFileName(
-                self,
-                "Save SRT Subtitles",
-                str(default_path),
-                "SRT Files (*.srt)"
-            )
-            if file_path:
-                content = format_transcript_srt(self.current_result)
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                logger.info(f"Saved SRT to: {file_path}")
-                self.status_bar.showMessage(f"Saved to {file_path}")
+        if format_type not in format_map:
+            logger.error(f"Unsupported format type: {format_type}")
+            return
+
+        file_filter, extension, format_id = format_map[format_type]
+        default_path = Path.home() / f"{base_name}{extension}"
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Save Transcript as {format_type.upper()}",
+            str(default_path),
+            file_filter
+        )
+
+        if file_path:
+            try:
+                success = self.exporter.export(
+                    self.current_result,
+                    Path(file_path),
+                    format_id
+                )
+                if success:
+                    logger.info(f"Saved transcript to: {file_path}")
+                    self.status_bar.showMessage(f"Saved to {file_path}")
+                else:
+                    self.status_bar.showMessage(f"Failed to save to {file_path}")
+            except Exception as e:
+                logger.error(f"Error saving transcript: {e}", exc_info=True)
+                self.status_bar.showMessage(f"Error: {str(e)}")
 
     def clear_transcript(self):
         """Clear transcript display"""
@@ -495,10 +574,67 @@ class MainWindow(QMainWindow):
         # Unload current models so they reload with new device next time
         self.viewmodel.engine.unload_models()
 
+        # Update quality preset dropdown to match device
+        self.update_quality_presets_for_device(new_device)
+
         # Update status bar
         device_name = "GPU" if new_device == "cuda" else "CPU"
         self.status_bar.showMessage(f"Switched to {device_name}. Models will reload on next transcription.", 5000)
         logger.info(f"Device switched to {new_device}, compute_type: {self.config.compute_type}")
+
+    def update_quality_presets_for_device(self, device: str):
+        """Update quality preset dropdown based on selected device"""
+        from transcription_app.utils.quality_presets import get_available_presets
+
+        # Block signals to prevent triggering preset change
+        self.preset_combo.blockSignals(True)
+
+        # Clear current items
+        self.preset_combo.clear()
+
+        # Get presets for this device
+        has_gpu = (device == "cuda")
+        presets = get_available_presets(has_gpu=has_gpu)
+
+        # Add appropriate presets
+        for preset_id, preset in presets.items():
+            self.preset_combo.addItem(preset.name, preset_id)
+
+        # Set appropriate default
+        if has_gpu:
+            # GPU: default to balanced
+            default_index = 0
+            for i in range(self.preset_combo.count()):
+                if self.preset_combo.itemData(i) == "gpu_balanced":
+                    default_index = i
+                    break
+            self.preset_combo.setCurrentIndex(default_index)
+            # Apply the preset (without changing device - already set)
+            self.viewmodel.engine.apply_preset("gpu_balanced", override_device=False)
+        else:
+            # CPU: only one option (cpu_optimized)
+            self.preset_combo.setCurrentIndex(0)
+            # Apply the preset (without changing device - already set)
+            self.viewmodel.engine.apply_preset("cpu_optimized", override_device=False)
+
+        # Re-enable signals
+        self.preset_combo.blockSignals(False)
+
+        logger.info(f"Updated quality presets for device: {device}")
+
+    def on_preset_changed(self, index):
+        """Handle quality preset change"""
+        preset_id = self.preset_combo.itemData(index)
+        preset_name = self.preset_combo.itemText(index)
+
+        logger.info(f"Switching to quality preset: {preset_name} ({preset_id})")
+
+        # Apply preset to transcription engine (without changing device)
+        self.viewmodel.engine.apply_preset(preset_id, override_device=False)
+
+        # Update status bar
+        self.status_bar.showMessage(f"Quality preset: {preset_name}. Models will reload with new settings on next transcription.", 5000)
+        logger.info(f"Quality preset applied: {preset_id}")
 
     def copy_transcript(self):
         """Copy transcript to clipboard"""
@@ -521,25 +657,38 @@ class MainWindow(QMainWindow):
         logger.info(f"Drop zone visibility: {self.dropzone_visible_action.isChecked()}")
 
     def toggle_dark_mode(self):
-        """Toggle dark mode theme"""
+        """Toggle between dark and light theme"""
         if self.dark_mode_action.isChecked():
-            self.apply_dark_mode()
+            self.apply_theme(Theme.DARK)
         else:
-            self.apply_light_mode()
+            self.apply_theme(Theme.LIGHT)
 
-    def apply_dark_mode(self):
-        """Apply dark mode theme"""
-        self.style_manager.set_theme(Theme.DARK)
-        self.setStyleSheet(self.style_manager.get_stylesheet())
-        self.status_bar.showMessage("Dark mode enabled")
-        logger.info("Dark mode enabled")
+    def apply_theme(self, theme: Theme):
+        """
+        Apply theme to entire application
 
-    def apply_light_mode(self):
-        """Apply light mode theme"""
-        self.style_manager.set_theme(Theme.LIGHT)
+        Args:
+            theme: Theme to apply
+        """
+        self.style_manager.set_theme(theme)
+
+        # Apply to main window
         self.setStyleSheet(self.style_manager.get_stylesheet())
-        self.status_bar.showMessage("Light mode enabled")
-        logger.info("Light mode enabled")
+
+        # Update all child widgets to refresh their styles
+        for widget in [self.drop_zone, self.file_queue, self.recording_sidebar, self.transcript_text]:
+            if hasattr(widget, 'update_theme'):
+                widget.update_theme(theme)
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+            widget.update()
+
+        theme_name = "Dark" if theme == Theme.DARK else "Light"
+        self.status_bar.showMessage(f"{theme_name} theme applied")
+        logger.info(f"{theme_name} theme enabled")
+
+        # Save preference to config
+        self.config.theme = theme.value
 
     def open_documentation(self):
         """Open documentation in default browser"""

@@ -6,36 +6,47 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QLabel, QCheckBox
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QTextCharFormat, QColor, QFont, QTextCursor, QSyntaxHighlighter
+from PySide6.QtGui import QTextCharFormat, QColor, QFont, QTextCursor, QSyntaxHighlighter, QTextDocument
+from transcription_app.gui.styles.stylesheet_manager import StyleSheetManager, Theme
 
 
 class TranscriptHighlighter(QSyntaxHighlighter):
     """Syntax highlighter for transcript text"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, theme=Theme.DARK):
         super().__init__(parent)
+        self.current_theme = theme
         self.setup_formats()
 
     def setup_formats(self):
-        """Setup text formats for different elements"""
+        """Setup text formats for different elements - theme aware"""
+        sm = StyleSheetManager(self.current_theme)
+        p = sm._palette
+
         # Timestamp format [00:15.23]
         self.timestamp_format = QTextCharFormat()
-        self.timestamp_format.setForeground(QColor("#0078d4"))
+        self.timestamp_format.setForeground(QColor(p.primary_500))
         self.timestamp_format.setFontWeight(QFont.Weight.Bold)
 
         # Speaker format Speaker 1:
         self.speaker_format = QTextCharFormat()
-        self.speaker_format.setForeground(QColor("#107c10"))
+        self.speaker_format.setForeground(QColor(p.success_main))
         self.speaker_format.setFontWeight(QFont.Weight.Bold)
 
         # Header format ===
         self.header_format = QTextCharFormat()
-        self.header_format.setForeground(QColor("#666"))
+        self.header_format.setForeground(QColor(p.neutral_400))
         self.header_format.setFontWeight(QFont.Weight.Bold)
 
         # Language format
         self.language_format = QTextCharFormat()
-        self.language_format.setForeground(QColor("#999"))
+        self.language_format.setForeground(QColor(p.neutral_300))
+
+    def update_theme(self, theme: Theme):
+        """Update highlighter theme"""
+        self.current_theme = theme
+        self.setup_formats()
+        self.rehighlight()
 
     def highlightBlock(self, text):
         """Highlight a block of text"""
@@ -68,7 +79,30 @@ class TranscriptWidget(QWidget):
         super().__init__(parent)
         self.current_search_index = -1
         self.search_results = []
+        # Theme support
+        self.current_theme = Theme.DARK  # Default
+        if hasattr(parent, 'style_manager'):
+            self.current_theme = parent.style_manager.current_theme
         self.setup_ui()
+
+    def _get_colors(self):
+        """Get theme-aware colors"""
+        sm = StyleSheetManager(self.current_theme)
+        p = sm._palette
+        return {
+            'bg': p.background,
+            'surface_1': p.surface_1,
+            'text_primary': p.text_primary,
+            'text_secondary': p.text_secondary,
+            'border': p.border,
+            'primary_main': p.primary_500,
+            'primary_hover': p.primary_600,
+            'warning_light': p.warning_light,
+            'warning_main': p.warning_main,
+            'neutral_100': p.neutral_100,
+            'neutral_200': p.neutral_200,
+            'neutral_400': p.neutral_400,
+        }
 
     def setup_ui(self):
         """Setup the UI"""
@@ -88,21 +122,22 @@ class TranscriptWidget(QWidget):
         header_layout.addStretch()
 
         # Copy button
+        c = self._get_colors()
         self.copy_btn = QPushButton("Copy All")
         self.copy_btn.setToolTip("Copy transcript to clipboard")
         self.copy_btn.clicked.connect(self.copy_all)
-        self.copy_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #0078d4;
+        self.copy_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c['primary_main']};
                 color: white;
                 border: none;
                 border-radius: 3px;
                 padding: 5px 12px;
                 font-size: 11px;
-            }
-            QPushButton:hover {
-                background-color: #106ebe;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {c['primary_hover']};
+            }}
         """)
         header_layout.addWidget(self.copy_btn)
 
@@ -123,22 +158,22 @@ class TranscriptWidget(QWidget):
         self.search_prev_btn.setFixedWidth(50)
         self.search_prev_btn.setToolTip("Previous match")
         self.search_prev_btn.clicked.connect(self.find_previous)
-        self.search_prev_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f3f3f3;
-                color: #333;
-                border: 1px solid #ccc;
+        self.search_prev_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c['surface_1']};
+                color: {c['text_primary']};
+                border: 1px solid {c['border']};
                 border-radius: 3px;
                 padding: 4px 8px;
                 font-size: 10px;
-            }
-            QPushButton:hover {
-                background-color: #e6e6e6;
-                border-color: #adadad;
-            }
-            QPushButton:pressed {
-                background-color: #d4d4d4;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {c['neutral_100']};
+                border-color: {c['neutral_400']};
+            }}
+            QPushButton:pressed {{
+                background-color: {c['neutral_200']};
+            }}
         """)
         search_layout.addWidget(self.search_prev_btn)
 
@@ -146,27 +181,27 @@ class TranscriptWidget(QWidget):
         self.search_next_btn.setFixedWidth(50)
         self.search_next_btn.setToolTip("Next match")
         self.search_next_btn.clicked.connect(self.find_next)
-        self.search_next_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f3f3f3;
-                color: #333;
-                border: 1px solid #ccc;
+        self.search_next_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c['surface_1']};
+                color: {c['text_primary']};
+                border: 1px solid {c['border']};
                 border-radius: 3px;
                 padding: 4px 8px;
                 font-size: 10px;
-            }
-            QPushButton:hover {
-                background-color: #e6e6e6;
-                border-color: #adadad;
-            }
-            QPushButton:pressed {
-                background-color: #d4d4d4;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {c['neutral_100']};
+                border-color: {c['neutral_400']};
+            }}
+            QPushButton:pressed {{
+                background-color: {c['neutral_200']};
+            }}
         """)
         search_layout.addWidget(self.search_next_btn)
 
         self.search_count_label = QLabel("")
-        self.search_count_label.setStyleSheet("color: #666; font-size: 10px;")
+        self.search_count_label.setStyleSheet(f"color: {c['text_secondary']}; font-size: 10px;")
         search_layout.addWidget(self.search_count_label)
 
         # Case sensitive checkbox
@@ -189,8 +224,8 @@ class TranscriptWidget(QWidget):
             "• Copy button to copy full transcript"
         )
 
-        # Apply syntax highlighter
-        self.highlighter = TranscriptHighlighter(self.text_edit.document())
+        # Apply syntax highlighter with current theme
+        self.highlighter = TranscriptHighlighter(self.text_edit.document(), self.current_theme)
 
         layout.addWidget(self.text_edit)
 
@@ -239,16 +274,17 @@ class TranscriptWidget(QWidget):
             return
 
         # Find all occurrences
-        flags = QTextCursor.FindFlag(0)
+        flags = QTextDocument.FindFlag(0)
         if self.case_sensitive_check.isChecked():
-            flags |= QTextCursor.FindFlag.FindCaseSensitively
+            flags |= QTextDocument.FindFlag.FindCaseSensitively
 
         cursor = self.text_edit.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.Start)
 
-        # Highlight format
+        # Highlight format - theme aware
+        c = self._get_colors()
         highlight_format = QTextCharFormat()
-        highlight_format.setBackground(QColor("#fff59d"))
+        highlight_format.setBackground(QColor(c['warning_light']))
 
         count = 0
         while True:
@@ -302,9 +338,10 @@ class TranscriptWidget(QWidget):
             len(self.search_input.text())
         )
 
-        # Set as current match (different color)
+        # Set as current match (different color) - theme aware
+        c = self._get_colors()
         current_format = QTextCharFormat()
-        current_format.setBackground(QColor("#ff9800"))
+        current_format.setBackground(QColor(c['warning_main']))
         cursor.mergeCharFormat(current_format)
 
         # Scroll to match
@@ -315,3 +352,69 @@ class TranscriptWidget(QWidget):
         self.search_count_label.setText(
             f"{self.current_search_index + 1} of {len(self.search_results)}"
         )
+
+    def update_theme(self, theme: Theme):
+        """Update widget theme"""
+        self.current_theme = theme
+        c = self._get_colors()
+
+        # Update button styles
+        self.copy_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c['primary_main']};
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 5px 12px;
+                font-size: 11px;
+            }}
+            QPushButton:hover {{
+                background-color: {c['primary_hover']};
+            }}
+        """)
+
+        self.search_prev_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c['surface_1']};
+                color: {c['text_primary']};
+                border: 1px solid {c['border']};
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 10px;
+            }}
+            QPushButton:hover {{
+                background-color: {c['neutral_100']};
+                border-color: {c['neutral_400']};
+            }}
+            QPushButton:pressed {{
+                background-color: {c['neutral_200']};
+            }}
+        """)
+
+        self.search_next_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c['surface_1']};
+                color: {c['text_primary']};
+                border: 1px solid {c['border']};
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 10px;
+            }}
+            QPushButton:hover {{
+                background-color: {c['neutral_100']};
+                border-color: {c['neutral_400']};
+            }}
+            QPushButton:pressed {{
+                background-color: {c['neutral_200']};
+            }}
+        """)
+
+        self.search_count_label.setStyleSheet(f"color: {c['text_secondary']}; font-size: 10px;")
+
+        # Update highlighter
+        if self.highlighter:
+            self.highlighter.update_theme(theme)
+
+        # Re-run search to update highlight colors
+        if self.search_input.text():
+            self.search_text()

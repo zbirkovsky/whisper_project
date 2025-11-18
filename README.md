@@ -12,6 +12,8 @@ A professional Windows desktop application for audio transcription with speaker 
 - **Audio Recording**: Capture audio from microphone and/or system audio simultaneously using WASAPI loopback
 - **Teams Integration**: Auto-detects Teams meeting names for organized recordings
 - **Drag & Drop Interface**: Modern, Fluent Design-inspired UI with drag-and-drop file support
+- **Theme System**: Professional dark and light modes with seamless switching (Ctrl+D)
+- **Configurable Settings**: Easy configuration via `settings.toml` for models, themes, and performance
 - **Multiple Export Formats**: Save transcripts as TXT or SRT subtitle files
 - **Batch Processing**: Process multiple audio files in queue
 - **Native Windows Application**: Built with PySide6 for true native performance
@@ -169,33 +171,50 @@ The application intelligently selects the best model based on language:
 
 ### Configuration
 
-Edit `config/settings.toml` to customize:
+The application can be configured via `settings.toml` in your user directory:
+- **Windows**: `C:\Users\YourName\.cloudcall\settings.toml`
+
+Edit `settings.toml` to customize:
 
 ```toml
 [transcription]
-whisper_model = "large-v3"  # Default model for auto-detection
-compute_type = "float16"  # float16 (GPU), int8 (CPU), float32 (compatibility)
-batch_size = 16
-device = "cuda"  # or "cpu"
-language = "auto"  # auto, cs (Czech), en (English)
+whisper_model = "large-v2"  # Model: tiny, base, small, medium, large-v2, large-v3
+device = "cuda"  # Device: cuda (GPU) or cpu
+compute_type = "float16"  # float16 (GPU), float32 (CPU/compatibility), int8 (CPU quantized)
+batch_size = 16  # Batch size (higher = faster but more VRAM)
 
-# Language-specific models for optimal quality
-model_czech = "whisper-large-v3-czech-cv13-ct2"  # 7.89% WER - 27% better for Czech
-model_english = "large-v3-turbo"  # 8x faster for English
-model_fallback = "large-v3"  # Used when language unknown
+[ui]
+theme = "dark"  # Theme: light, dark, auto
 
 [diarization]
-enabled = true
-min_speakers = 1
-max_speakers = 10
+diarization_enabled = true  # Enable speaker identification
 ```
 
 **Model Size Guide**:
 - `tiny` (39MB): Fast but less accurate, good for testing
-- `base` (74MB): Good balance, recommended for most users
+- `base` (74MB): Good balance for CPU users
 - `small` (244MB): Better accuracy
 - `medium` (769MB): High accuracy
-- `large-v2` (1.5GB): Best accuracy, requires 6GB+ VRAM
+- `large-v2` (1.5GB): Excellent accuracy and quality (recommended)
+- `large-v3` (1.5GB): Latest model with multilingual improvements
+
+**Theme Options**:
+- Toggle dark/light mode with `Ctrl+D` or View menu
+- Themes apply instantly without restart
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+O` | Open audio files |
+| `Ctrl+R` | Focus recording sidebar |
+| `Ctrl+T` | Save transcript as TXT |
+| `Ctrl+S` | Save transcript as SRT |
+| `Ctrl+C` | Copy transcript to clipboard |
+| `Ctrl+L` | Clear transcript display |
+| `Ctrl+D` | Toggle dark/light mode |
+| `Ctrl+,` | Open settings |
+| `F1` | Open documentation |
 
 ## Building Executable
 

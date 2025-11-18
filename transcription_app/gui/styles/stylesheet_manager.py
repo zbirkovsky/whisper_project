@@ -92,36 +92,40 @@ SPACING = {
     '4xl': '40px',  # 4x large
 }
 
-# Border radius scale (more subtle)
+# Border radius scale (Modern 2025 - more rounded for sleek look)
 RADIUS = {
-    'sm': '2px',    # Small
-    'md': '4px',    # Medium
-    'lg': '6px',    # Large
-    'xl': '8px',    # Extra large
-    'full': '9999px', # Circle/pill
+    'sm': '6px',     # Small buttons, inputs
+    'md': '8px',     # Medium cards, panels
+    'lg': '12px',    # Large cards
+    'xl': '16px',    # Extra large modals
+    '2xl': '20px',   # Very rounded
+    'full': '9999px', # Circle/pill buttons
 }
 
-# Typography scale (compact professional sizing)
+# Modern Typography 2025 (Spotify/Discord inspired)
 TYPOGRAPHY = {
-    # Font families
-    'font_primary': "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-    'font_mono': "'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace",
+    # Font families - modern system fonts
+    'font_primary': "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif",
+    'font_mono': "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', 'Monaco', monospace",
+    'font_display': "'Inter', 'Segoe UI Variable', -apple-system, BlinkMacSystemFont, sans-serif",
 
-    # Font sizes (reduced for compact look)
-    'size_xs': '10px',
-    'size_sm': '11px',
-    'size_base': '12px',
-    'size_lg': '13px',
-    'size_xl': '14px',
-    'size_2xl': '18px',
-    'size_3xl': '24px',
-    'size_4xl': '32px',
+    # Modern font sizes (slightly larger for readability)
+    'size_xs': '11px',
+    'size_sm': '12px',
+    'size_base': '14px',   # Increased base size
+    'size_lg': '16px',
+    'size_xl': '18px',
+    'size_2xl': '24px',
+    'size_3xl': '32px',
+    'size_4xl': '48px',
 
-    # Font weights
+    # Modern font weights
+    'weight_light': '300',
     'weight_regular': '400',
     'weight_medium': '500',
     'weight_semibold': '600',
     'weight_bold': '700',
+    'weight_extrabold': '800',
 }
 
 
@@ -188,64 +192,64 @@ class StyleSheetManager:
         border_focus="#2196F3",
     )
 
-    # ===== MODERN DARK THEME (Material Design 3 Dark) =====
+    # ===== MODERN DARK THEME 2025 (Professional Teal/Cyan) =====
     DARK_PALETTE = ColorPalette(
-        # Primary colors (adjusted for dark)
-        primary_50="#0D47A1",
-        primary_100="#1565C0",
-        primary_300="#64B5F6",
-        primary_500="#42A5F5",
-        primary_600="#2196F3",
-        primary_700="#1E88E5",
+        # Professional teal/cyan accent (sophisticated, not toxic)
+        primary_50="#5EEAD4",  # Light teal for hover
+        primary_100="#2DD4BF",
+        primary_300="#14B8A6",  # Medium teal
+        primary_500="#0D9488",  # Main professional teal
+        primary_600="#0F766E",
+        primary_700="#115E59",
 
-        # Dark neutrals (Material Design dark baseline)
+        # Sleek dark neutrals (Discord/Spotify inspired)
         neutral_0="#FFFFFF",
-        neutral_50="#E5E5E5",
-        neutral_100="#CFCFCF",
-        neutral_200="#9E9E9E",
-        neutral_300="#6B6B6B",
-        neutral_400="#525252",
-        neutral_500="#3D3D3D",
-        neutral_600="#2D2D2D",
+        neutral_50="#F0F0F0",
+        neutral_100="#E0E0E0",
+        neutral_200="#B3B3B3",
+        neutral_300="#808080",
+        neutral_400="#535353",
+        neutral_500="#404040",
+        neutral_600="#2E2E2E",
         neutral_700="#1E1E1E",
-        neutral_900="#121212",
+        neutral_900="#0A0A0A",  # Almost black background
 
-        # Semantic colors (adjusted for dark)
-        success_light="#1B5E20",
-        success_main="#66BB6A",
-        success_dark="#A5D6A7",
+        # Vibrant semantic colors (professional tones)
+        success_light="#166534",
+        success_main="#10B981",  # Professional emerald green
+        success_dark="#059669",
 
-        warning_light="#E65100",
-        warning_main="#FFA726",
-        warning_dark="#FFCC80",
+        warning_light="#E67E22",
+        warning_main="#F39C12",  # Warm orange
+        warning_dark="#F1C40F",
 
-        error_light="#B71C1C",
-        error_main="#EF5350",
-        error_dark="#E57373",
+        error_light="#C0392B",
+        error_main="#E74C3C",  # Bright red
+        error_dark="#EC7063",
 
-        info_light="#0D47A1",
-        info_main="#42A5F5",
-        info_dark="#90CAF9",
+        info_light="#2980B9",
+        info_main="#3498DB",  # Bright blue
+        info_dark="#5DADE2",
 
-        # Surface elevation (Material Design dark surfaces)
-        surface_0="#121212",
-        surface_1="#1E1E1E",
-        surface_2="#232323",
-        surface_3="#2C2C2C",
+        # Deep dark surfaces with subtle elevation
+        surface_0="#0A0A0A",  # Deepest black
+        surface_1="#121212",  # Cards
+        surface_2="#1A1A1A",  # Elevated elements
+        surface_3="#242424",  # Dialogs/modals
 
-        # Shadows (softer for dark theme)
-        shadow_sm="0 1px 2px 0 rgba(0, 0, 0, 0.3)",
-        shadow_md="0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3)",
-        shadow_lg="0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3)",
-        shadow_xl="0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3)",
+        # Enhanced shadows with glow effects
+        shadow_sm="0 2px 4px 0 rgba(0, 0, 0, 0.4)",
+        shadow_md="0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 2px 6px -1px rgba(0, 0, 0, 0.4)",
+        shadow_lg="0 10px 24px -4px rgba(0, 0, 0, 0.6), 0 4px 12px -2px rgba(0, 0, 0, 0.5)",
+        shadow_xl="0 20px 40px -8px rgba(0, 0, 0, 0.7), 0 10px 20px -5px rgba(0, 0, 0, 0.5)",
 
         # Legacy compatibility
-        background="#121212",
-        foreground="#E0E0E0",
-        text_primary="#E0E0E0",
-        text_secondary="#CFCFCF",
-        border="#3D3D3D",
-        border_focus="#42A5F5",
+        background="#0A0A0A",
+        foreground="#F0F0F0",
+        text_primary="#F0F0F0",
+        text_secondary="#B3B3B3",
+        border="#2E2E2E",
+        border_focus="#0D9488",  # Professional teal
     )
 
     # Design tokens (spacing, typography, etc.)
@@ -286,12 +290,12 @@ class StyleSheetManager:
         'weight_bold': '700',
     }
 
-    def __init__(self, theme: Theme = Theme.LIGHT):
+    def __init__(self, theme: Theme = Theme.DARK):
         """
         Initialize the stylesheet manager
 
         Args:
-            theme: Initial theme to use
+            theme: Initial theme to use (default: DARK for modern 2025 look)
         """
         self.current_theme = theme
         self._palette = self._get_palette(theme)
@@ -702,10 +706,19 @@ class StyleSheetManager:
         }}
         QComboBox QAbstractItemView {{
             background-color: {bg_color};
+            color: {self._palette.text_primary};
             border: 1px solid {self._palette.border};
             border-radius: {self.RADIUS['md']};
             selection-background-color: {self._palette.primary_50 if self.current_theme == Theme.LIGHT else self._palette.surface_2};
             selection-color: {self._palette.text_primary};
+        }}
+        QComboBox QAbstractItemView::item {{
+            color: {self._palette.text_primary};
+            padding: {self.SPACING['sm']};
+        }}
+        QComboBox QAbstractItemView::item:hover {{
+            background-color: {self._palette.surface_2 if self.current_theme == Theme.DARK else self._palette.neutral_50};
+            color: {self._palette.text_primary};
         }}
         """
 
