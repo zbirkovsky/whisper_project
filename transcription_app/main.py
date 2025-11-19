@@ -131,9 +131,11 @@ def main():
         transcription_engine = transcription_service.get_engine()
         audio_recorder = audio_recorder_service.get_recorder()
 
-        # Apply default quality preset (gpu_balanced)
+        # Apply default quality preset
         logger.info("Applying default quality preset...")
-        transcription_engine.apply_preset("gpu_balanced", override_device=True)
+        # Determine default preset based on device
+        default_preset = "gpu_balanced" if config.device == "cuda" else "cpu_optimized"
+        transcription_engine.apply_preset(default_preset, override_device=False)
 
         # Create ViewModel (still using direct instances for now)
         logger.info("Creating ViewModel...")

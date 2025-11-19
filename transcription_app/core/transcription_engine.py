@@ -18,6 +18,7 @@ except ImportError as e:
 
 from transcription_app.utils.logger import get_logger
 from transcription_app.utils.language_detector import get_best_model_for_language
+from transcription_app.utils.quality_presets import get_preset
 
 logger = get_logger(__name__)
 
@@ -38,6 +39,44 @@ class TranscriptionEngine(QObject):
             f"TranscriptionEngine initialized: device={self.device}, "
             f"compute_type={self.compute_type}, model={config.whisper_model}"
         )
+
+    def apply_preset(self, preset_id: str, override_device: bool = False):
+        """
+        Apply a quality preset to the transcription engine
+
+        Args:
+            preset_id: ID of the preset to apply (e.g., "gpu_balanced", "cpu_optimized")
+            override_device: Whether to override the device setting from the preset
+        """
+        preset = get_preset(preset_id)
+        logger.info(f"Applying quality preset: {preset.name} ({preset_id})")
+
+        # Update device if override is enabled
+        if override_device and preset.device != self.device:
+            logger.info(f"Overriding device: {self.device} -> {preset.device}")
+            self.device = preset.device
+            self.config.device = preset.device
+            # Model will need to be reloaded
+            if self.model is not None:
+                logger.info("Unloading model due to device change")
+                self.unload_models()
+
+        # Update compute type
+        if preset.compute_type != self.compute_type:
+            logger.info(f"Updating compute type: {self.compute_type} -> {preset.compute_type}")
+            self.compute_type = preset.compute_type
+            self.config.compute_type = preset.compute_type
+            # Model will need to be reloaded
+            if self.model is not None:
+                logger.info("Unloading model due to compute type change")
+                self.unload_models()
+
+        # Update batch size
+        if preset.batch_size != self.config.batch_size:
+            logger.info(f"Updating batch size: {self.config.batch_size} -> {preset.batch_size}")
+            self.config.batch_size = preset.batch_size
+
+        logger.info(f"Preset applied: {preset.name}")
 
     def ensure_models_loaded(self, language: Optional[str] = None):
         """
