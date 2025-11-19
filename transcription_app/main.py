@@ -4,8 +4,9 @@ Main entry point with proper initialization
 """
 import sys
 import warnings
+import shutil
 from pathlib import Path
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import Qt
 
 # Suppress ctranslate2 pkg_resources deprecation warning (library issue, not ours)
@@ -35,6 +36,38 @@ from transcription_app.core.service_implementations import (
     AudioRecorderService
 )
 from transcription_app.core.audio_formats import get_audio_format_registry
+
+
+def check_ffmpeg_available():
+    """
+    Check if FFmpeg is available in system PATH
+
+    Returns:
+        bool: True if FFmpeg is found, False otherwise
+    """
+    return shutil.which("ffmpeg") is not None
+
+
+def show_ffmpeg_warning(app):
+    """
+    Show a warning dialog if FFmpeg is not found
+
+    Args:
+        app: QApplication instance
+    """
+    msg = QMessageBox()
+    msg.setIcon(QMessageBox.Warning)
+    msg.setWindowTitle("FFmpeg Not Found")
+    msg.setText("FFmpeg is required for audio transcription but was not found on your system.")
+    msg.setInformativeText(
+        "The application will start, but transcription will fail until FFmpeg is installed.\n\n"
+        "To install FFmpeg:\n"
+        "• Windows: winget install ffmpeg\n"
+        "• Or download from: https://ffmpeg.org/download.html\n\n"
+        "After installation, restart this application."
+    )
+    msg.setStandardButtons(QMessageBox.Ok)
+    msg.exec()
 
 
 def setup_services(config):
@@ -117,6 +150,13 @@ def main():
     logger.info(f"Models directory: {config.models_dir}")
     logger.info(f"Device: {config.device}")
     logger.info(f"Whisper model: {config.whisper_model}")
+
+    # Check for FFmpeg availability
+    if not check_ffmpeg_available():
+        logger.warning("FFmpeg not found in system PATH")
+        show_ffmpeg_warning(app)
+    else:
+        logger.info("FFmpeg found in system PATH")
 
     try:
         # Setup dependency injection container
