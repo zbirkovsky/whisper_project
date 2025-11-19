@@ -241,7 +241,21 @@ class TranscriptionWorker(QThread):
             # Load audio
             self.progress_updated.emit(10, "Loading audio file...")
             logger.info(f"Loading audio: {self.audio_file}")
-            audio = whisperx.load_audio(str(self.audio_file))
+            try:
+                audio = whisperx.load_audio(str(self.audio_file))
+            except FileNotFoundError as e:
+                # This usually means FFmpeg is not installed
+                error_msg = (
+                    "FFmpeg is required but not found on your system.\n\n"
+                    "Please install FFmpeg:\n"
+                    "1. Download from: https://ffmpeg.org/download.html\n"
+                    "   Or use winget: winget install ffmpeg\n"
+                    "2. Add FFmpeg to your system PATH\n"
+                    "3. Restart the application\n\n"
+                    f"Technical details: {str(e)}"
+                )
+                logger.error(f"FFmpeg not found: {e}")
+                raise FileNotFoundError(error_msg) from e
 
             if self.is_cancelled:
                 return

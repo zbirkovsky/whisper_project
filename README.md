@@ -25,12 +25,14 @@ A professional Windows desktop application for audio transcription with speaker 
 - **RAM**: 8GB minimum, 16GB recommended
 - **Storage**: 5GB free space (for application and models)
 - **CPU**: Intel Core i5 or equivalent
+- **FFmpeg**: Required for audio processing (see installation below)
 
 ### Recommended Requirements
 - **GPU**: NVIDIA GPU with 6GB+ VRAM (RTX 3060 or better)
 - **CUDA**: CUDA Toolkit 11.8 or 12.x
 - **RAM**: 16GB or more
 - **Storage**: SSD with 10GB+ free space
+- **FFmpeg**: Latest version in system PATH
 
 ## Installation
 
@@ -49,6 +51,18 @@ Install Python 3.10 (recommended) or 3.11:
 ```bash
 # Download from https://www.python.org/downloads/
 python --version  # Verify installation
+```
+
+Install FFmpeg (required for audio processing):
+```bash
+# Option 1: Using winget (Windows 10+)
+winget install ffmpeg
+
+# Option 2: Manual installation
+# Download from https://ffmpeg.org/download.html
+# Extract and add to system PATH
+# Verify installation:
+ffmpeg -version
 ```
 
 Install CUDA Toolkit (for GPU support):
@@ -240,6 +254,22 @@ pyinstaller transcription_app.spec
 4. Installer will be created in `installer_output\`
 
 ## Troubleshooting
+
+### FFmpeg Not Found Error
+
+**Symptom**: `FileNotFoundError` when transcribing audio files
+
+**Solution**:
+```bash
+# Install FFmpeg using winget
+winget install ffmpeg
+
+# Or download manually from https://ffmpeg.org/download.html
+# After installation, verify:
+ffmpeg -version
+
+# Restart the application
+```
 
 ### GPU Not Detected
 
