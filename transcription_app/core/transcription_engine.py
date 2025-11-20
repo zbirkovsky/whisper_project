@@ -35,6 +35,12 @@ class TranscriptionEngine(QObject):
         self.device = config.validate_device()
         self.compute_type = config.compute_type
 
+        # Quality preset settings (dynamically configurable)
+        self.current_preset = "gpu_balanced"
+        self.asr_options = None
+        self.vad_options = None
+        self.batch_size = config.batch_size
+
         logger.info(
             f"TranscriptionEngine initialized: device={self.device}, "
             f"compute_type={self.compute_type}, model={config.whisper_model}"
@@ -42,14 +48,16 @@ class TranscriptionEngine(QObject):
 
     def apply_preset(self, preset_id: str, override_device: bool = False):
         """
-        Apply a quality preset to the transcription engine
+        Apply quality preset to engine
 
         Args:
-            preset_id: ID of the preset to apply (e.g., "gpu_balanced", "cpu_optimized")
-            override_device: Whether to override the device setting from the preset
+            preset_id: Preset identifier (gpu_ultra, gpu_balanced, gpu_fast, cpu_optimized)
+            override_device: If True, also change device to preset's device (default: False, keeps current device)
         """
+        logger.info(f"Applying quality preset: {preset_id}")
+
         preset = get_preset(preset_id)
-        logger.info(f"Applying quality preset: {preset.name} ({preset_id})")
+        self.current_preset = preset_id
 
         # Update device if override is enabled
         if override_device and preset.device != self.device:
@@ -72,11 +80,22 @@ class TranscriptionEngine(QObject):
                 self.unload_models()
 
         # Update batch size
-        if preset.batch_size != self.config.batch_size:
-            logger.info(f"Updating batch size: {self.config.batch_size} -> {preset.batch_size}")
-            self.config.batch_size = preset.batch_size
+        self.batch_size = preset.batch_size
+        self.config.batch_size = preset.batch_size
+        
+        # Update options
+        self.asr_options = preset.asr_options.copy()
+        self.vad_options = preset.vad_options.copy()
 
-        logger.info(f"Preset applied: {preset.name}")
+        # Force model reload with new settings if we haven't already unloaded
+        if self.model is not None:
+            logger.info("Preset changed, unloading model to apply new settings on next transcription")
+            self.unload_models()
+
+        logger.info(
+            f"Preset applied: device={self.device}, compute_type={self.compute_type}, "
+            f"batch_size={self.batch_size}, beam_size={self.asr_options.get('beam_size', 'N/A')}"
+        )
 
     def ensure_models_loaded(self, language: Optional[str] = None):
         """
@@ -108,46 +127,29 @@ class TranscriptionEngine(QObject):
             import os
             os.environ['HF_HUB_OFFLINE'] = '0'
 
-            # High-quality ASR options to prevent hallucinations and improve accuracy
-            asr_options = {
-                # Anti-hallucination settings (CRITICAL)
-                "condition_on_previous_text": False,     # Prevent hallucination chaining
-                "repetition_penalty": 1.2,               # Penalize repetitive text (>1 = less repetition)
-                "no_repeat_ngram_size": 3,               # Block 3-word phrase loops
+            # Use preset options if available, otherwise use defaults
+            if self.asr_options is None or self.vad_options is None:
+                # Apply default preset on first load
+                logger.info(f"No preset configured, applying default: {self.current_preset}")
+                preset = get_preset(self.current_preset)
+                self.asr_options = preset.asr_options.copy()
+                self.vad_options = preset.vad_options.copy()
 
-                # Quality & retry settings
-                "temperatures": [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],  # Temperature fallback on failure
-                "no_speech_threshold": 0.6,              # Treat as silence if prob > 0.6
-                "compression_ratio_threshold": 2.4,      # Reject if compression ratio > 2.4
-                "log_prob_threshold": -1.0,              # Reject if avg log prob < -1.0
-
-                # Context for better accuracy
-                "initial_prompt": "This is a professional conversation in clear English. Transcribe exactly what is said, including filler words like um and uh.",
-            }
-
-            # VAD options with reduced thresholds to catch full words
-            vad_options = {
-                "chunk_size": 30,
-                "vad_onset": 0.300,      # Reduced from 0.500 - catch word starts
-                "vad_offset": 0.200,     # Reduced from 0.363 - catch word endings
-            }
-
-            logger.info(f"ASR options: {asr_options}")
-            logger.info(f"VAD options: {vad_options}")
+            logger.info(f"Using preset: {self.current_preset}")
+            logger.info(f"ASR options: {self.asr_options}")
+            logger.info(f"VAD options: {self.vad_options}")
 
             # Try loading with retries for HuggingFace server errors
             max_retries = 3
             for attempt in range(max_retries):
                 try:
+                    # Load model WITHOUT asr_options/vad_options - those go in transcribe() method
                     self.model = whisperx.load_model(
                         desired_model,
                         device=self.device,
                         compute_type=self.compute_type,
                         download_root=str(self.config.models_dir),
-                        vad_method="silero",        # Use Silero VAD for compatibility
-                        asr_options=asr_options,    # Quality settings
-                        vad_options=vad_options,    # Better speech detection
-                        language="en",              # Force English
+                        # asr_options and vad_options removed - they should be passed to transcribe(), not load_model()
                     )
                     self.current_model_name = desired_model
                     logger.info(f"Whisper model loaded successfully: {desired_model}")
@@ -264,12 +266,18 @@ class TranscriptionWorker(QThread):
             self.progress_updated.emit(20, "Transcribing audio...")
             logger.info("Starting transcription")
 
-            # Handle language parameter - WhisperX has limited API
+            # Build transcription options from preset + language
             transcribe_options = {
-                'batch_size': self.engine.config.batch_size,
+                'batch_size': self.engine.batch_size,  # Use preset batch size
             }
+
+            # Add language if specified
             if self.language != "auto":
                 transcribe_options['language'] = self.language
+
+            # Merge ASR options from quality preset (these control transcription quality)
+            if self.engine.asr_options:
+                transcribe_options.update(self.engine.asr_options)
 
             logger.info(f"Transcription options: {transcribe_options}")
 
@@ -349,8 +357,25 @@ class TranscriptionWorker(QThread):
             logger.info("Transcription pipeline complete")
             self.transcription_complete.emit(result)
 
+            self.transcription_complete.emit(result)
+
         except Exception as e:
-            error_msg = f"Transcription error: {str(e)}"
+            error_msg = str(e)
+            
+            # Check for GPU OOM
+            if "CUDA out of memory" in error_msg or "OutOfMemoryError" in error_msg:
+                logger.error("GPU Out of Memory error detected")
+                error_msg = (
+                    "GPU Out of Memory. Try reducing batch size in Settings "
+                    "or using a smaller model (e.g., 'small' or 'base')."
+                )
+                # Force cleanup immediately
+                gc.collect()
+                if self.engine.device == "cuda":
+                    torch.cuda.empty_cache()
+            else:
+                error_msg = f"Transcription error: {str(e)}"
+                
             logger.error(error_msg, exc_info=True)
             self.error_occurred.emit(error_msg)
 

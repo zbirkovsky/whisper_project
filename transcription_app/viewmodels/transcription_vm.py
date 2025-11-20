@@ -7,6 +7,7 @@ from typing import Dict, Any
 from datetime import datetime
 import re
 from PySide6.QtCore import QObject, Signal, Slot
+from collections import deque
 
 from transcription_app.core.transcription_engine import TranscriptionWorker
 from transcription_app.core.audio_recorder import RecordingWorker
@@ -71,7 +72,8 @@ class TranscriptionViewModel(QObject):
         self.engine = transcription_engine
         self.recorder = audio_recorder
         self.active_workers: Dict[str, Any] = {}
-        self.file_queue = []
+        self.queue = deque()
+        self.is_processing = False
 
         logger.info("TranscriptionViewModel initialized")
 
@@ -91,10 +93,34 @@ class TranscriptionViewModel(QObject):
 
         if valid_files:
             logger.info(f"Adding {len(valid_files)} files to queue")
-            self.file_queue.extend(valid_files)
+            # Add to internal queue
+            for f in valid_files:
+                self.queue.append(f)
+            
+            # Emit signal so UI can update (show in list)
             self.files_added.emit(valid_files)
+            
+            # Trigger processing
+            self.process_next()
         else:
             logger.warning(f"No valid files found in: {file_paths}")
+
+    def process_next(self):
+        """Process next file in queue if idle"""
+        if self.is_processing:
+            return
+
+        if not self.queue:
+            logger.info("Queue empty, processing complete")
+            return
+
+        self.is_processing = True
+        file_path = self.queue.popleft()
+        
+        # Start transcription for this file
+        # Note: We use default settings for now. In a more advanced version, 
+        # we might want to store per-file settings in the queue.
+        self.start_transcription(file_path)
 
     @Slot(str)
     @Slot(str, bool)
@@ -145,6 +171,10 @@ class TranscriptionViewModel(QObject):
         # Cleanup worker
         if file_id in self.active_workers:
             del self.active_workers[file_id]
+            
+        # Process next file
+        self.is_processing = False
+        self.process_next()
 
     def _on_error_occurred(self, file_id: str, error: str):
         """Handle error from worker"""
@@ -154,6 +184,10 @@ class TranscriptionViewModel(QObject):
         # Cleanup worker
         if file_id in self.active_workers:
             del self.active_workers[file_id]
+            
+        # Process next file (even on error, we want to continue with others)
+        self.is_processing = False
+        self.process_next()
 
     @Slot(int, bool, bool)
     @Slot(int, bool, bool, str)

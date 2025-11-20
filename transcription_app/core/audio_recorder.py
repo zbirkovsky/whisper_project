@@ -15,6 +15,12 @@ except ImportError:
     import pyaudio
 
 from transcription_app.utils.logger import get_logger
+from transcription_app.utils.audio_processing import (
+    calculate_and_apply_gain_boost,
+    calculate_rms,
+    stereo_to_mono,
+    mix_audio_sources
+)
 
 logger = get_logger(__name__)
 
@@ -307,36 +313,45 @@ class RecordingWorker(QThread):
                 mic_channels = mic_stream_info[2] if mic_stream_info else 1
 
                 # Convert stereo system audio to mono (average L+R)
-                sys_mono = np.array([sys_audio[::2], sys_audio[1::2]]).mean(axis=0)
+                sys_mono = stereo_to_mono(sys_audio)
 
                 # Convert mic audio to mono if stereo
                 if mic_channels == 2:
-                    mic_mono = np.array([mic_audio[::2], mic_audio[1::2]]).mean(axis=0)
+                    mic_mono = stereo_to_mono(mic_audio)
                 else:
                     mic_mono = mic_audio
 
                 # Check if system audio is mostly silence (RMS < 100)
-                sys_rms = np.sqrt(np.mean(sys_mono**2))
-                mic_rms = np.sqrt(np.mean(mic_mono**2))
+                sys_rms = calculate_rms(sys_mono)
+                mic_rms = calculate_rms(mic_mono)
 
                 logger.info(f"Audio levels - Mic RMS: {mic_rms:.1f}, System RMS: {sys_rms:.1f}")
 
+                # Apply moderate gain boost for low microphone levels
+                # Target RMS should be at least 400 for good Whisper VAD detection
+                mic_mono, boost_factor = calculate_and_apply_gain_boost(
+                    mic_mono,
+                    rms_threshold=self.config.mixed_rms_threshold,
+                    target_rms=self.config.mixed_target_rms,
+                    max_boost=self.config.mixed_max_boost,
+                    rms_floor=self.config.rms_floor,
+                    use_soft_clipping=self.config.mixed_use_soft_clipping
+                )
+                mic_rms = mic_rms * boost_factor  # Update RMS for mixing logic
+
                 if sys_rms < 100:
-                    # System audio is silent, use mic only with gain boost
-                    logger.info("System audio silent, using microphone only with gain boost")
-                    # Boost microphone by 3x for better quality (if RMS < 1000)
-                    if mic_rms < 1000:
-                        boost_factor = min(3.0, 2000.0 / max(mic_rms, 100))
-                        logger.info(f"Applying gain boost: {boost_factor:.2f}x")
-                        mic_mono = mic_mono * boost_factor
+                    # System audio is silent, use mic only
+                    logger.info("System audio silent, using microphone only")
                     mixed = np.clip(mic_mono, -32767, 32766).astype('int16')
                 else:
                     # Mix both sources with proper levels
-                    sys_mono = sys_mono * 0.5  # Reduce system audio
-                    mic_mono = mic_mono * 1.2  # Boost mic slightly
-                    min_len = min(len(sys_mono), len(mic_mono))
-                    mixed = sys_mono[:min_len] + mic_mono[:min_len]
-                    mixed = np.clip(mixed, -32767, 32766).astype('int16')
+                    logger.info(f"Mixing both sources (Mic: {mic_rms:.1f} RMS, System: {sys_rms:.1f} RMS)")
+                    mixed = mix_audio_sources(
+                        sys_mono,
+                        mic_mono,
+                        source1_gain=0.5,  # Reduce system audio
+                        source2_gain=1.0
+                    )
 
                 # Downsample to target rate if needed
                 if source_rate != target_rate:
@@ -369,20 +384,24 @@ class RecordingWorker(QThread):
                 mic_stream_info = next((s for s in self.streams if s[0] == 'mic'), None)
                 mic_channels = mic_stream_info[2] if mic_stream_info else 1
 
-                mic_rms = np.sqrt(np.mean(mic_audio**2))
+                mic_rms = calculate_rms(mic_audio)
                 logger.info(f"Microphone audio - Channels: {mic_channels}, RMS: {mic_rms:.1f}")
 
                 # Convert to mono if stereo
                 if mic_channels == 2:
-                    mic_mono = np.array([mic_audio[::2], mic_audio[1::2]]).mean(axis=0)
+                    mic_mono = stereo_to_mono(mic_audio)
                 else:
                     mic_mono = mic_audio
 
-                # Boost microphone if too quiet
-                if mic_rms < 1000:
-                    boost_factor = min(3.0, 2000.0 / max(mic_rms, 100))
-                    logger.info(f"Boosting microphone gain by {boost_factor:.2f}x")
-                    mic_mono = mic_mono * boost_factor
+                # Boost microphone if too quiet (higher threshold for mic-only recording)
+                mic_mono, _ = calculate_and_apply_gain_boost(
+                    mic_mono,
+                    rms_threshold=self.config.mic_only_rms_threshold,
+                    target_rms=self.config.mic_only_target_rms,
+                    max_boost=self.config.mic_only_max_boost,
+                    rms_floor=self.config.rms_floor,
+                    use_soft_clipping=self.config.mic_only_use_soft_clipping
+                )
 
                 mic_mono = np.clip(mic_mono, -32767, 32766).astype('int16')
 

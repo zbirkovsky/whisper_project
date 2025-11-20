@@ -374,9 +374,9 @@ class MainWindow(QMainWindow):
             # Add to enhanced queue widget
             self.file_queue.add_file(file_id, file_path)
 
-            # Auto-start transcription
-            logger.info(f"Starting transcription for: {file_id}")
-            self.viewmodel.start_transcription(file_path)
+            # Auto-start transcription is now handled by the ViewModel queue
+            # logger.info(f"Starting transcription for: {file_id}")
+            # self.viewmodel.start_transcription(file_path)
 
         self.status_bar.showMessage(f"Added {len(files)} file(s) to queue")
 

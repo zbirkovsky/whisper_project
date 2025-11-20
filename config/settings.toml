@@ -12,9 +12,9 @@ organization = "CloudCall"
 [transcription]
 # Whisper model: tiny, base, small, medium, large-v2, large-v3, large-v3-turbo
 whisper_model = "large-v3"  # Default model for auto-detection
-compute_type = "float32"  # float32 for best CPU quality (int8 degrades quality)
-batch_size = 8  # REDUCED from 16 for better quality on CPU
-device = "cpu"  # CPU mode (RTX 5090 not yet supported by PyTorch - will be available in future)
+compute_type = "float32"  # MAXIMUM QUALITY - full precision (RTX 5090 has the power!)
+batch_size = 24  # Higher batch for better quality (RTX 5090 can handle it)
+device = "cuda"  # GPU mode enabled (RTX 5090 with PyTorch 2.7.0+cu128)
 language = "en"  # ENGLISH ONLY for bulletproof accuracy (en=English, cs=Czech, auto=detect)
 
 # Language-specific models for optimal quality
@@ -29,6 +29,23 @@ channels = 2  # Record in stereo, convert to mono after
 chunk_size = 2048  # Larger chunk size for better recording performance
 audio_format = "int16"
 
+# Audio gain boost settings (prevent distortion while ensuring good VAD detection)
+[audio.gain_boost]
+# Mixed recording (mic + system audio)
+mixed_rms_threshold = 500.0  # Apply boost if RMS below this
+mixed_target_rms = 400.0  # Target RMS level
+mixed_max_boost = 2.5  # Maximum boost multiplier
+mixed_use_soft_clipping = true  # Use tanh soft clipping to prevent harsh distortion
+
+# Microphone-only recording (more aggressive for low mics)
+mic_only_rms_threshold = 1000.0
+mic_only_target_rms = 2000.0
+mic_only_max_boost = 3.0
+mic_only_use_soft_clipping = false
+
+# RMS floor to prevent division by zero
+rms_floor = 100.0
+
 [diarization]
 enabled = true
 min_speakers = 1
@@ -42,6 +59,17 @@ hf_token = ""
 theme = "auto"  # auto, light, dark
 window_width = 1000
 window_height = 700
+
+# Window dimensions and layout
+window_min_width = 1100
+window_min_height = 600
+sidebar_min_width = 200
+sidebar_max_width = 350
+file_queue_min_height = 100
+
+# Splitter proportions (pixel values for initial layout)
+vertical_splitter_sizes = [60, 120, 520]  # drop zone, queue, transcript
+horizontal_splitter_sizes = [250, 650]  # sidebar, main content
 
 [logging]
 log_level = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL

@@ -168,7 +168,9 @@ class AppConfig(BaseSettings):
 
     def __init__(self, **kwargs):
         # First try to load from settings.toml if it exists
-        settings_file = Path('config/settings.toml')
+        # Resolve relative to the project root (3 levels up from utils/config.py)
+        project_root = Path(__file__).parent.parent.parent
+        settings_file = project_root / 'config' / 'settings.toml'
         toml_config = {}
 
         if settings_file.exists():
