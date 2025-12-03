@@ -9,13 +9,14 @@ from PySide6.QtWidgets import (
     QComboBox, QLabel
 )
 from PySide6.QtCore import Qt, Slot
-from PySide6.QtGui import QFont, QAction, QKeySequence
+from PySide6.QtGui import QFont, QAction, QKeySequence, QShortcut
 
 from transcription_app.gui.widgets.drop_zone_widget import DropZoneWidget
 from transcription_app.gui.widgets.recording_sidebar import RecordingSidebarWidget
 from transcription_app.gui.widgets.file_queue_widget import FileQueueWidget
 from transcription_app.gui.widgets.settings_dialog import SettingsDialog
 from transcription_app.gui.widgets.transcript_widget import TranscriptWidget
+from transcription_app.gui.widgets.realtime_display_widget import RealtimeDisplayWidget
 from transcription_app.gui.styles import StyleSheetManager, Theme, get_icon_manager, AnimationHelper
 from transcription_app.gui.styles.stylesheet_manager import SPACING
 from transcription_app.core.transcript_exporter import TranscriptExporter
@@ -46,6 +47,7 @@ class MainWindow(QMainWindow):
         self.exporter = TranscriptExporter()  # Transcript export manager
         self.setup_ui()
         self.connect_signals()
+        self.setup_shortcuts()
         logger.info(f"MainWindow initialized with {initial_theme.value} theme")
 
     def setup_ui(self):
@@ -95,6 +97,11 @@ class MainWindow(QMainWindow):
         self.file_queue.remove_file.connect(self.remove_file)
         self.file_queue.setMinimumHeight(self.config.file_queue_min_height)
         vertical_splitter.addWidget(self.file_queue)
+
+        # Real-time translation display (hidden by default)
+        self.realtime_display = RealtimeDisplayWidget(self)
+        self.realtime_display.setMinimumHeight(self.config.realtime_display_min_height)
+        vertical_splitter.addWidget(self.realtime_display)
 
         # Transcript display - enhanced widget with syntax highlighting and search
         self.transcript_text = TranscriptWidget()
@@ -252,13 +259,14 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
         # Device selector (GPU/CPU toggle)
+        label_color = self.style_manager.get_palette().text_secondary
         device_label = QLabel("Device:")
-        device_label.setStyleSheet("color: #757575; font-weight: 500;")
+        device_label.setStyleSheet(f"color: {label_color}; font-weight: 500;")
         layout.addWidget(device_label)
 
         self.device_combo = QComboBox()
         self.device_combo.setToolTip("Select processing device (GPU is much faster if available)")
-        self.device_combo.setMinimumWidth(120)
+        self.device_combo.setMinimumWidth(220)
 
         # Check GPU availability and populate options
         try:
@@ -271,6 +279,8 @@ class MainWindow(QMainWindow):
                 if len(gpu_display) > 20:
                     gpu_display = gpu_display[:17] + "..."
                 self.device_combo.addItem(f"🎮 GPU ({gpu_display})", "cuda")
+                # Add tooltip with full GPU name
+                self.device_combo.setItemData(0, f"GPU: {gpu_name}", Qt.ItemDataRole.ToolTipRole)
             else:
                 self.device_combo.addItem("🎮 GPU (Not Available)", "cuda_disabled")
         except Exception as e:
@@ -297,12 +307,12 @@ class MainWindow(QMainWindow):
 
         # Quality preset selector
         preset_label = QLabel("Quality:")
-        preset_label.setStyleSheet("color: #757575; font-weight: 500;")
+        preset_label.setStyleSheet(f"color: {label_color}; font-weight: 500;")
         layout.addWidget(preset_label)
 
         self.preset_combo = QComboBox()
         self.preset_combo.setToolTip("Select quality preset (higher quality = slower but more accurate)")
-        self.preset_combo.setMinimumWidth(150)
+        self.preset_combo.setMinimumWidth(220)
 
         # Import presets
         from transcription_app.utils.quality_presets import get_available_presets
@@ -342,6 +352,61 @@ class MainWindow(QMainWindow):
         self.viewmodel.transcription_completed.connect(self.display_transcript)
         self.viewmodel.error_occurred.connect(self.show_error)
         self.drop_zone.files_dropped.connect(self.viewmodel.add_files)
+
+        # Real-time transcription signals
+        self.viewmodel.realtime_translation.connect(self.realtime_display.add_translation)
+        self.recording_sidebar.realtime_check.stateChanged.connect(self.on_realtime_toggle)
+        self.viewmodel.recording_completed.connect(self.on_recording_complete)
+
+    def setup_shortcuts(self):
+        """Setup keyboard shortcuts for quick actions"""
+        # Toggle recording: Ctrl+Shift+R
+        shortcut_record = QShortcut(QKeySequence("Ctrl+Shift+R"), self)
+        shortcut_record.activated.connect(self.toggle_recording)
+
+        # Cancel current operation: Escape
+        shortcut_cancel = QShortcut(QKeySequence("Escape"), self)
+        shortcut_cancel.activated.connect(self.cancel_current)
+
+        # Toggle real-time transcription: Ctrl+Shift+T
+        shortcut_realtime = QShortcut(QKeySequence("Ctrl+Shift+T"), self)
+        shortcut_realtime.activated.connect(self.toggle_realtime)
+
+        # Quick save TXT: Ctrl+Shift+S
+        shortcut_save = QShortcut(QKeySequence("Ctrl+Shift+S"), self)
+        shortcut_save.activated.connect(lambda: self.save_transcript('txt'))
+
+        logger.info("Keyboard shortcuts configured")
+
+    def toggle_recording(self):
+        """Toggle recording on/off via keyboard shortcut"""
+        if self.recording_sidebar.is_recording:
+            self.recording_sidebar.stop_recording()
+            self.status_bar.showMessage("Recording stopped (Ctrl+Shift+R)", 3000)
+        else:
+            self.recording_sidebar.start_recording()
+            self.status_bar.showMessage("Recording started (Ctrl+Shift+R)", 3000)
+
+    def cancel_current(self):
+        """Cancel current operation (Escape key)"""
+        # Cancel any active transcription
+        for file_id in list(self.viewmodel.active_workers.keys()):
+            if file_id != 'recording':
+                self.viewmodel.cancel_transcription(file_id)
+                self.status_bar.showMessage(f"Cancelled transcription: {file_id}", 3000)
+                return
+
+        # If no transcription, check for recording
+        if self.recording_sidebar.is_recording:
+            self.recording_sidebar.stop_recording()
+            self.status_bar.showMessage("Recording cancelled (Escape)", 3000)
+
+    def toggle_realtime(self):
+        """Toggle real-time transcription checkbox"""
+        current_state = self.recording_sidebar.realtime_check.isChecked()
+        self.recording_sidebar.realtime_check.setChecked(not current_state)
+        state_text = "enabled" if not current_state else "disabled"
+        self.status_bar.showMessage(f"Real-time transcription {state_text} (Ctrl+Shift+T)", 3000)
 
     def open_files(self):
         """Open file dialog to select audio files using supported formats"""
@@ -541,6 +606,25 @@ class MainWindow(QMainWindow):
                 setattr(self.config, key, value)
 
         self.status_bar.showMessage("Settings applied successfully! Restart for some changes to take effect.")
+
+    @Slot(int)
+    def on_realtime_toggle(self, state):
+        """Handle real-time transcription checkbox toggle"""
+        is_checked = (state == Qt.CheckState.Checked.value)
+        if is_checked:
+            self.realtime_display.show_display()
+            self.status_bar.showMessage("Real-time translation ENABLED - speak into microphone", 5000)
+            logger.info("Real-time display enabled and visible")
+        else:
+            self.realtime_display.hide_display()
+            self.status_bar.showMessage("Real-time translation disabled", 3000)
+            logger.info("Real-time display disabled")
+
+    @Slot(str)
+    def on_recording_complete(self, file_path: str):
+        """Handle recording completion - hide real-time display"""
+        self.realtime_display.hide_display()
+        logger.info(f"Recording complete, real-time display hidden: {file_path}")
 
     def on_device_changed(self, index):
         """Handle device change (GPU/CPU toggle)"""

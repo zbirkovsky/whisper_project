@@ -6,7 +6,7 @@ import wave
 import numpy as np
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from PySide6.QtCore import QObject, Signal, QThread
 
 try:
@@ -38,7 +38,7 @@ class AudioRecorder(QObject):
         if self.p is None:
             self.p = pyaudio.PyAudio()
 
-    def list_devices(self) -> List[Dict[str, any]]:
+    def list_devices(self) -> List[Dict[str, Any]]:
         """Get list of available audio devices"""
         self._ensure_pyaudio()
 
@@ -121,6 +121,7 @@ class RecordingWorker(QThread):
     progress_updated = Signal(float)  # seconds recorded
     recording_complete = Signal(str)  # output file path
     error_occurred = Signal(str)  # error message
+    audio_chunk_ready = Signal(bytes, int)  # audio_data, sample_rate (for real-time transcription)
 
     def __init__(
         self,
@@ -148,6 +149,52 @@ class RecordingWorker(QThread):
             f"mic={record_mic}, system={record_system}"
         )
 
+    def _open_stream_with_retry(self, p, device_index: int, channels: int, name: str, max_retries: int = 3):
+        """
+        Open audio stream with retry logic for buffer allocation errors
+
+        Args:
+            p: PyAudio instance
+            device_index: Audio device index
+            channels: Number of channels
+            name: Stream name for logging
+            max_retries: Maximum retry attempts
+
+        Returns:
+            Opened stream or None if failed
+        """
+        import time
+
+        chunk_sizes = [
+            self.config.chunk_size,
+            self.config.chunk_size * 2,  # Try larger buffer
+            8192,  # Fallback to safe large buffer
+        ]
+
+        for attempt in range(max_retries):
+            chunk_size = chunk_sizes[min(attempt, len(chunk_sizes) - 1)]
+            try:
+                stream = p.open(
+                    format=pyaudio.paInt16,
+                    channels=channels,
+                    rate=self.config.sample_rate,
+                    input=True,
+                    frames_per_buffer=chunk_size,
+                    input_device_index=device_index
+                )
+                if attempt > 0:
+                    logger.info(f"Opened {name} stream on retry {attempt + 1} with chunk_size={chunk_size}")
+                return stream
+            except OSError as e:
+                if "-9992" in str(e) or "Insufficient memory" in str(e):
+                    logger.warning(f"Buffer allocation failed for {name} (attempt {attempt + 1}), retrying with larger buffer...")
+                    time.sleep(0.5)  # Brief pause before retry
+                else:
+                    raise
+
+        logger.error(f"Failed to open {name} stream after {max_retries} attempts")
+        return None
+
     def run(self):
         """Execute recording in background thread"""
         p = pyaudio.PyAudio()
@@ -165,30 +212,22 @@ class RecordingWorker(QThread):
 
             if self.record_system and self.loopback_index is not None:
                 logger.info(f"Opening system audio stream (device {self.loopback_index})")
-                stream_sys = p.open(
-                    format=pyaudio.paInt16,
-                    channels=2,
-                    rate=self.config.sample_rate,
-                    input=True,
-                    frames_per_buffer=self.config.chunk_size,
-                    input_device_index=self.loopback_index
+                stream_sys = self._open_stream_with_retry(
+                    p, self.loopback_index, 2, "system"
                 )
-                self.streams.append(('system', stream_sys, 2))
+                if stream_sys:
+                    self.streams.append(('system', stream_sys, 2))
 
             if self.record_mic and self.mic_index is not None:
                 # Get mic device info to determine channel count
                 mic_info = p.get_device_info_by_index(self.mic_index)
                 mic_channels = min(mic_info['maxInputChannels'], 2)  # Use up to 2 channels
                 logger.info(f"Opening microphone stream (device {self.mic_index}, {mic_channels} channels)")
-                stream_mic = p.open(
-                    format=pyaudio.paInt16,
-                    channels=mic_channels,
-                    rate=self.config.sample_rate,
-                    input=True,
-                    frames_per_buffer=self.config.chunk_size,
-                    input_device_index=self.mic_index
+                stream_mic = self._open_stream_with_retry(
+                    p, self.mic_index, mic_channels, "mic"
                 )
-                self.streams.append(('mic', stream_mic, mic_channels))
+                if stream_mic:
+                    self.streams.append(('mic', stream_mic, mic_channels))
 
             if not self.streams:
                 raise ValueError("No audio streams available")
@@ -248,6 +287,20 @@ class RecordingWorker(QThread):
 
                     if chunk_success:
                         chunks_recorded += 1
+
+                        # Emit audio chunk for real-time transcription (every chunk for responsiveness)
+                        # Prefer mic audio, fall back to system audio
+                        audio_to_emit = None
+                        if 'mic' in frames and len(frames['mic']) > 0:
+                            audio_to_emit = frames['mic'][-1]
+                        elif 'system' in frames and len(frames['system']) > 0:
+                            audio_to_emit = frames['system'][-1]
+
+                        if audio_to_emit:
+                            self.audio_chunk_ready.emit(audio_to_emit, self.config.sample_rate)
+                            # Log every 100 chunks to avoid spam
+                            if chunks_recorded % 100 == 0:
+                                logger.debug(f"Emitted {chunks_recorded} audio chunks for real-time transcription")
 
                         # Update progress every 10 chunks to reduce overhead
                         if chunks_recorded % 10 == 0:
@@ -339,7 +392,7 @@ class RecordingWorker(QThread):
                 )
                 mic_rms = mic_rms * boost_factor  # Update RMS for mixing logic
 
-                if sys_rms < 100:
+                if sys_rms < self.config.rms_floor:
                     # System audio is silent, use mic only
                     logger.info("System audio silent, using microphone only")
                     mixed = np.clip(mic_mono, -32767, 32766).astype('int16')

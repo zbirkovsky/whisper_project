@@ -109,10 +109,10 @@ TYPOGRAPHY = {
     'font_mono': "'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', 'Monaco', monospace",
     'font_display': "'Inter', 'Segoe UI Variable', -apple-system, BlinkMacSystemFont, sans-serif",
 
-    # Modern font sizes (slightly larger for readability)
-    'size_xs': '11px',
-    'size_sm': '12px',
-    'size_base': '14px',   # Increased base size
+    # Modern font sizes (increased for better readability)
+    'size_xs': '12px',     # Was 11px
+    'size_sm': '13px',     # Was 12px
+    'size_base': '14px',   # Base size
     'size_lg': '16px',
     'size_xl': '18px',
     'size_2xl': '24px',
@@ -276,7 +276,7 @@ class StyleSheetManager:
     TYPOGRAPHY = {
         'font_primary': "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Helvetica Neue', sans-serif",
         'font_mono': "'Consolas', 'Monaco', 'Courier New', monospace",
-        'size_xs': '11px',
+        'size_xs': '12px',    # Was 11px - increased for readability
         'size_sm': '13px',
         'size_base': '14px',
         'size_md': '16px',

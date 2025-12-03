@@ -76,8 +76,8 @@ class AppConfig(BaseSettings):
         description="Number of audio channels"
     )
     chunk_size: int = Field(
-        default=2048,
-        description="Audio chunk size for recording (larger = better quality, less crackling)"
+        default=4096,
+        description="Audio chunk size for recording (larger = more stable, less buffer errors)"
     )
     audio_format: str = Field(
         default="int16",
@@ -134,11 +134,52 @@ class AppConfig(BaseSettings):
     # UI dimensions and layout
     window_min_width: int = Field(default=1100)
     window_min_height: int = Field(default=600)
-    sidebar_min_width: int = Field(default=200)
-    sidebar_max_width: int = Field(default=350)
+    sidebar_min_width: int = Field(default=320)
+    sidebar_max_width: int = Field(default=480)
     file_queue_min_height: int = Field(default=100)
+    realtime_display_min_height: int = Field(default=150)
     vertical_splitter_sizes: list[int] = Field(default=[60, 120, 520])
-    horizontal_splitter_sizes: list[int] = Field(default=[250, 650])
+    horizontal_splitter_sizes: list[int] = Field(default=[320, 680])
+
+    # Memory management
+    model_idle_timeout: int = Field(
+        default=300,
+        description="Seconds of idle time before unloading models to free memory"
+    )
+
+    # Real-time transcription settings
+    realtime_enabled: bool = Field(
+        default=False,
+        description="Enable real-time transcription during recording"
+    )
+    realtime_source_language: str = Field(
+        default="auto",
+        description="Source language for real-time transcription"
+    )
+    realtime_target_language: str = Field(
+        default="en",
+        description="Target language for real-time translation"
+    )
+    realtime_chunk_duration: float = Field(
+        default=2.5,
+        description="Duration in seconds to buffer before transcribing (lower = faster but less accurate)"
+    )
+    realtime_model: str = Field(
+        default="large-v3-turbo",
+        description="Whisper model for real-time transcription (turbo models are faster)"
+    )
+    realtime_batch_size: int = Field(
+        default=4,
+        description="Smaller batch size for faster real-time processing"
+    )
+    realtime_show_original: bool = Field(
+        default=False,
+        description="Show original text alongside translation"
+    )
+    realtime_show_translation_only: bool = Field(
+        default=True,
+        description="Show only translated text (hide original)"
+    )
 
     # Logging
     log_level: str = Field(

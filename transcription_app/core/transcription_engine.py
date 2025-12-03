@@ -3,9 +3,10 @@ Transcription engine integrating WhisperX and Pyannote
 Provides GPU-accelerated speech-to-text with speaker diarization
 """
 import gc
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, Signal, QThread, QTimer
 
 try:
     import whisperx
@@ -36,14 +37,22 @@ class TranscriptionEngine(QObject):
         self.compute_type = config.compute_type
 
         # Quality preset settings (dynamically configurable)
-        self.current_preset = "gpu_balanced"
+        self.current_preset = "cpu_optimized"
         self.asr_options = None
         self.vad_options = None
         self.batch_size = config.batch_size
 
+        # Memory management - idle timeout
+        self.idle_timeout = getattr(config, 'model_idle_timeout', 300)  # Default 5 minutes
+        self.last_used = 0.0
+        self._idle_timer = QTimer()
+        self._idle_timer.timeout.connect(self._check_idle_unload)
+        self._idle_timer.start(60000)  # Check every minute
+
         logger.info(
             f"TranscriptionEngine initialized: device={self.device}, "
-            f"compute_type={self.compute_type}, model={config.whisper_model}"
+            f"compute_type={self.compute_type}, model={config.whisper_model}, "
+            f"idle_timeout={self.idle_timeout}s"
         )
 
     def apply_preset(self, preset_id: str, override_device: bool = False):
@@ -113,6 +122,7 @@ class TranscriptionEngine(QObject):
         # Check if we need to switch models
         if self.model is not None and self.current_model_name == desired_model:
             logger.debug(f"Model {desired_model} already loaded")
+            self._update_last_used()  # Track usage for idle timeout
             return
 
         # Unload current model if switching
@@ -152,12 +162,12 @@ class TranscriptionEngine(QObject):
                         # asr_options and vad_options removed - they should be passed to transcribe(), not load_model()
                     )
                     self.current_model_name = desired_model
+                    self._update_last_used()  # Track model usage for idle timeout
                     logger.info(f"Whisper model loaded successfully: {desired_model}")
                     break
                 except Exception as e:
                     if attempt < max_retries - 1 and "500" in str(e):
                         logger.warning(f"HuggingFace server error, retrying... (attempt {attempt + 1}/{max_retries})")
-                        import time
                         time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
                     else:
                         raise
@@ -191,6 +201,26 @@ class TranscriptionEngine(QObject):
             torch.cuda.empty_cache()
 
         logger.info("Models unloaded")
+
+    def _check_idle_unload(self):
+        """Check if models should be unloaded due to idle timeout"""
+        if self.model is None:
+            return  # Nothing to unload
+
+        if self.last_used == 0.0:
+            return  # Never used, don't unload yet
+
+        idle_time = time.time() - self.last_used
+        if idle_time > self.idle_timeout:
+            logger.info(
+                f"Unloading models due to idle timeout "
+                f"(idle for {idle_time:.0f}s, timeout: {self.idle_timeout}s)"
+            )
+            self.unload_models()
+
+    def _update_last_used(self):
+        """Update the last used timestamp"""
+        self.last_used = time.time()
 
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about loaded models"""
@@ -269,15 +299,18 @@ class TranscriptionWorker(QThread):
             # Build transcription options from preset + language
             transcribe_options = {
                 'batch_size': self.engine.batch_size,  # Use preset batch size
+                'task': 'transcribe',  # Explicitly set task to avoid token misinterpretation
             }
 
-            # Add language if specified
-            if self.language != "auto":
+            # Add language if specified (must be valid ISO 639-1 code)
+            if self.language and self.language != "auto":
                 transcribe_options['language'] = self.language
 
             # Merge ASR options from quality preset (these control transcription quality)
             if self.engine.asr_options:
-                transcribe_options.update(self.engine.asr_options)
+                # Don't let preset override task
+                preset_options = {k: v for k, v in self.engine.asr_options.items() if k != 'task'}
+                transcribe_options.update(preset_options)
 
             logger.info(f"Transcription options: {transcribe_options}")
 
@@ -355,8 +388,6 @@ class TranscriptionWorker(QThread):
 
             self.progress_updated.emit(100, "Complete!")
             logger.info("Transcription pipeline complete")
-            self.transcription_complete.emit(result)
-
             self.transcription_complete.emit(result)
 
         except Exception as e:

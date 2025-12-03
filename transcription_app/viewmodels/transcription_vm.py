@@ -3,7 +3,7 @@ ViewModel for transcription operations
 Bridges GUI and business logic using MVVM pattern
 """
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 import re
 from PySide6.QtCore import QObject, Signal, Slot
@@ -11,6 +11,7 @@ from collections import deque
 
 from transcription_app.core.transcription_engine import TranscriptionWorker
 from transcription_app.core.audio_recorder import RecordingWorker
+from transcription_app.core.realtime_transcription import RealtimeTranscriptionEngine
 from transcription_app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -66,6 +67,7 @@ class TranscriptionViewModel(QObject):
     error_occurred = Signal(str, str)  # file_id, error_message
     recording_progress = Signal(float)  # seconds recorded
     recording_completed = Signal(str)  # file path
+    realtime_translation = Signal(str, str, float)  # original_text, translated_text, timestamp
 
     def __init__(self, transcription_engine, audio_recorder):
         super().__init__()
@@ -74,6 +76,9 @@ class TranscriptionViewModel(QObject):
         self.active_workers: Dict[str, Any] = {}
         self.queue = deque()
         self.is_processing = False
+
+        # Real-time transcription engine (created on demand)
+        self.realtime_engine: Optional[RealtimeTranscriptionEngine] = None
 
         logger.info("TranscriptionViewModel initialized")
 
@@ -192,13 +197,16 @@ class TranscriptionViewModel(QObject):
     @Slot(int, bool, bool)
     @Slot(int, bool, bool, str)
     @Slot(int, bool, bool, str, object)
+    @Slot(int, bool, bool, str, object, bool, str)
     def start_recording(
         self,
         duration_seconds: int,
         record_mic: bool = True,
         record_system: bool = True,
         meeting_name: str = None,
-        mic_index: int = None
+        mic_index: int = None,
+        enable_realtime: bool = False,
+        realtime_source_lang: str = "auto"
     ):
         """
         Start audio recording
@@ -209,11 +217,39 @@ class TranscriptionViewModel(QObject):
             record_system: Whether to record system audio
             meeting_name: Optional meeting name for filename
             mic_index: Optional microphone device index (if None, uses default)
+            enable_realtime: Whether to enable real-time transcription/translation
+            realtime_source_lang: Source language for real-time translation
         """
         logger.info(
             f"Starting recording: {duration_seconds}s, "
-            f"mic={record_mic}, system={record_system}, meeting={meeting_name}, mic_index={mic_index}"
+            f"mic={record_mic}, system={record_system}, meeting={meeting_name}, "
+            f"mic_index={mic_index}, realtime={enable_realtime}, lang={realtime_source_lang}"
         )
+
+        # Initialize real-time transcription if enabled
+        if enable_realtime:
+            logger.info(f"Initializing real-time transcription: {realtime_source_lang} -> en")
+            self.realtime_engine = RealtimeTranscriptionEngine(
+                self.engine,
+                source_language=realtime_source_lang,
+                target_language="en"
+            )
+            # Connect real-time signals
+            self.realtime_engine.transcription_ready.connect(self.realtime_translation.emit)
+            self.realtime_engine.error_occurred.connect(
+                lambda error: self.error_occurred.emit("realtime", error)
+            )
+            self.realtime_engine.start()
+
+            # Emit a test message to verify display works
+            logger.info("Emitting test message to real-time display")
+            self.realtime_translation.emit(
+                "Starting real-time transcription...",
+                "[System] Listening... speak now to see translations",
+                0.0
+            )
+        else:
+            self.realtime_engine = None
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -254,12 +290,30 @@ class TranscriptionViewModel(QObject):
             lambda error: self.error_occurred.emit("recording", error)
         )
 
+        # Connect audio chunks to real-time engine if enabled
+        if self.realtime_engine:
+            # Use a lambda to add logging
+            def on_audio_chunk(data, rate):
+                logger.debug(f"Audio chunk received: {len(data)} bytes at {rate}Hz")
+                self.realtime_engine.add_audio_chunk(data, rate)
+
+            worker.audio_chunk_ready.connect(on_audio_chunk)
+            logger.info("Connected audio chunks to real-time transcription engine")
+            logger.info(f"Real-time engine active: {self.realtime_engine.is_active}, worker: {self.realtime_engine.worker is not None}")
+
         self.active_workers['recording'] = worker
         worker.start()
 
     def _on_recording_complete(self, file_path: str):
         """Handle recording completion"""
         logger.info(f"Recording complete: {file_path}")
+
+        # Stop real-time transcription if active
+        if self.realtime_engine:
+            logger.info("Stopping real-time transcription engine")
+            self.realtime_engine.stop()
+            self.realtime_engine = None
+
         self.recording_completed.emit(file_path)
 
         # Cleanup worker

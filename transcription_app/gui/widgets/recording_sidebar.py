@@ -113,7 +113,7 @@ class RecordingSidebarWidget(QWidget):
 
         # === Audio Input Section ===
         self.audio_label = QLabel("Audio Input")
-        self.audio_label.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {c['text_secondary']}; margin-top: 8px;")
+        self.audio_label.setStyleSheet(f"font-weight: 600; font-size: 14px; color: {c['text_secondary']}; margin-top: 8px;")
         layout.addWidget(self.audio_label)
 
         # Microphone checkbox
@@ -146,6 +146,8 @@ class RecordingSidebarWidget(QWidget):
 
         self.mic_combo = QComboBox()
         self.mic_combo.setMinimumHeight(36)
+        self.mic_combo.setMinimumWidth(280)
+        self.mic_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.mic_combo.setStyleSheet(f"""
             QComboBox {{
                 padding: 8px 10px;
@@ -218,7 +220,7 @@ class RecordingSidebarWidget(QWidget):
 
         # === Meeting Name Section ===
         self.meeting_label = QLabel("Meeting Name")
-        self.meeting_label.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {c['text_secondary']}; margin-top: 12px;")
+        self.meeting_label.setStyleSheet(f"font-weight: 600; font-size: 14px; color: {c['text_secondary']}; margin-top: 12px;")
         layout.addWidget(self.meeting_label)
 
         # Meeting name input with Teams detect button
@@ -277,12 +279,12 @@ class RecordingSidebarWidget(QWidget):
         # Teams status label
         self.teams_status_label = QLabel("")
         self.teams_status_label.setWordWrap(True)
-        self.teams_status_label.setStyleSheet(f"color: {c['text_secondary']}; font-size: 11px; font-style: italic; padding: 4px 0;")
+        self.teams_status_label.setStyleSheet(f"color: {c['text_secondary']}; font-size: 12px; font-style: italic; padding: 4px 0;")
         layout.addWidget(self.teams_status_label)
 
         # === Language Section ===
         self.language_label = QLabel("Language")
-        self.language_label.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {c['text_secondary']}; margin-top: 12px;")
+        self.language_label.setStyleSheet(f"font-weight: 600; font-size: 14px; color: {c['text_secondary']}; margin-top: 12px;")
         layout.addWidget(self.language_label)
 
         self.language_combo = QComboBox()
@@ -293,6 +295,7 @@ class RecordingSidebarWidget(QWidget):
         ])
         self.language_combo.setCurrentIndex(0)  # Default to English
         self.language_combo.setMinimumHeight(36)
+        self.language_combo.setMinimumWidth(180)
         self.language_combo.setStyleSheet(f"""
             QComboBox {{
                 padding: 8px 10px;
@@ -332,6 +335,100 @@ class RecordingSidebarWidget(QWidget):
             }}
         """)
         layout.addWidget(self.language_combo)
+
+        # === Real-time Transcription Section ===
+        self.realtime_check = QCheckBox("⚡ Real-time Translation (to English)")
+        self.realtime_check.setChecked(False)
+        self.realtime_check.setToolTip("Enable live transcription and translation during recording (useful for foreign languages like Vietnamese)")
+        self.realtime_check.stateChanged.connect(self.on_realtime_check_changed)
+        self.realtime_check.setStyleSheet(f"""
+            QCheckBox {{
+                font-size: 13px;
+                color: {c['text_primary']};
+                margin-top: 12px;
+                spacing: 8px;
+                font-weight: 500;
+            }}
+            QCheckBox::indicator {{
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                border: 2px solid {c['border']};
+                background-color: {c['surface_2']};
+            }}
+            QCheckBox::indicator:hover {{
+                border-color: {c['warning_main']};
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {c['warning_main']};
+                border-color: {c['warning_main']};
+            }}
+        """)
+        layout.addWidget(self.realtime_check)
+
+        # Source language selector for real-time (only visible when real-time is enabled)
+        self.realtime_lang_label = QLabel("Translate from:")
+        self.realtime_lang_label.setStyleSheet(f"font-size: 12px; color: {c['text_secondary']}; margin-top: 6px;")
+        self.realtime_lang_label.setVisible(False)
+        layout.addWidget(self.realtime_lang_label)
+
+        self.realtime_lang_combo = QComboBox()
+        self.realtime_lang_combo.addItems([
+            "🇻🇳 Vietnamese",
+            "🇨🇳 Chinese (Mandarin)",
+            "🇪🇸 Spanish",
+            "🇫🇷 French",
+            "🇩🇪 German",
+            "🇯🇵 Japanese",
+            "🇰🇷 Korean",
+            "🇷🇺 Russian",
+            "🇮🇹 Italian",
+            "🇵🇹 Portuguese",
+            "🌐 Auto-detect"
+        ])
+        self.realtime_lang_combo.setCurrentIndex(0)  # Default to Vietnamese
+        self.realtime_lang_combo.setMinimumHeight(36)
+        self.realtime_lang_combo.setMinimumWidth(200)
+        self.realtime_lang_combo.setVisible(False)
+        self.realtime_lang_combo.setStyleSheet(f"""
+            QComboBox {{
+                padding: 8px 10px;
+                border: 2px solid {c['border']};
+                border-radius: 8px;
+                font-size: 13px;
+                background-color: {c['surface_2']};
+                color: {c['text_primary']};
+            }}
+            QComboBox:hover {{
+                border-color: {c['neutral_400']};
+            }}
+            QComboBox:focus {{
+                border-color: {c['border_focus']};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 30px;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                border: 2px solid {c['text_secondary']};
+                width: 8px;
+                height: 8px;
+                border-top: none;
+                border-left: none;
+                margin-right: 8px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {c['surface_2']};
+                color: {c['text_primary']};
+                border: 1px solid {c['border']};
+                border-radius: 8px;
+                selection-background-color: {c['border']};
+                selection-color: {c['primary_main']};
+                padding: 4px;
+            }}
+        """)
+        layout.addWidget(self.realtime_lang_combo)
 
         # Separator
         self.separator2 = QFrame()
@@ -521,7 +618,7 @@ class RecordingSidebarWidget(QWidget):
             mic_devices.sort(key=priority_sort)
 
             self.mic_combo.clear()
-            for device in mic_devices:
+            for i, device in enumerate(mic_devices):
                 name = device['name']
                 channels = device['max_inputs']
                 rate = int(device['default_sample_rate'])
@@ -532,6 +629,8 @@ class RecordingSidebarWidget(QWidget):
 
                 display_text = f"{name} ({channels}ch, {rate}Hz)"
                 self.mic_combo.addItem(display_text, device['index'])
+                # Add tooltip with full device name for truncated items
+                self.mic_combo.setItemData(i, display_text, Qt.ItemDataRole.ToolTipRole)
 
             logger.info(f"Populated {len(mic_devices)} microphones")
 
@@ -549,6 +648,32 @@ class RecordingSidebarWidget(QWidget):
     def on_mic_check_changed(self, state):
         """Enable/disable mic combo when checkbox changes"""
         self.mic_combo.setEnabled(self.mic_check.isChecked())
+
+    @Slot(int)
+    def on_realtime_check_changed(self, state):
+        """Show/hide real-time language selector when checkbox changes"""
+        is_checked = self.realtime_check.isChecked()
+        self.realtime_lang_label.setVisible(is_checked)
+        self.realtime_lang_combo.setVisible(is_checked)
+        logger.info(f"Real-time translation {'enabled' if is_checked else 'disabled'}")
+
+    def get_realtime_source_language(self) -> str:
+        """Get the selected source language code for real-time translation"""
+        lang_mapping = {
+            0: "vi",    # Vietnamese
+            1: "zh",    # Chinese
+            2: "es",    # Spanish
+            3: "fr",    # French
+            4: "de",    # German
+            5: "ja",    # Japanese
+            6: "ko",    # Korean
+            7: "ru",    # Russian
+            8: "it",    # Italian
+            9: "pt",    # Portuguese
+            10: "auto"  # Auto-detect
+        }
+        index = self.realtime_lang_combo.currentIndex()
+        return lang_mapping.get(index, "auto")
 
     def auto_detect_teams(self):
         """Auto-detect Teams meeting (runs on initialization)"""
@@ -637,13 +762,19 @@ class RecordingSidebarWidget(QWidget):
         self.status_label.setText("Recording...")
         self.status_label.setStyleSheet("color: #E74C3C; font-size: 13px; font-weight: 700;")
 
+        # Get real-time transcription settings
+        enable_realtime = self.realtime_check.isChecked()
+        realtime_source_lang = self.get_realtime_source_language() if enable_realtime else "auto"
+
         # Start recording (unlimited duration: 7200 seconds / 2 hours)
         self.viewmodel.start_recording(
             duration_seconds=7200,
             record_mic=self.mic_check.isChecked(),
             record_system=self.system_check.isChecked(),
             meeting_name=meeting_name,
-            mic_index=mic_index
+            mic_index=mic_index,
+            enable_realtime=enable_realtime,
+            realtime_source_lang=realtime_source_lang
         )
 
         # Start timer
