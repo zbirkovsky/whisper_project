@@ -2,10 +2,10 @@
 
 ## ✅ What You Have
 
-Good news! PyTorch with CUDA 11.8 is already installed in your virtual environment:
-- torch 2.7.1+cu118 ✓
-- torchvision 0.22.1+cu118 ✓
-- torchaudio 2.7.1+cu118 ✓
+Good news! PyTorch with CUDA 12.1 is already installed in your virtual environment:
+- torch (CUDA 12.1) ✓
+- torchvision (CUDA 12.1) ✓
+- torchaudio (CUDA 12.1) ✓
 
 ## 🔧 Complete Installation
 
@@ -17,10 +17,10 @@ cd C:\Whisper_project
 
 ### Step 2: Activate Virtual Environment
 
-Your venv is at: `C:\Windows\System32\venv`
+Your venv is in the project directory: `C:\Whisper_project\venv`
 
 ```bash
-C:\Windows\System32\venv\Scripts\activate
+C:\Whisper_project\venv\Scripts\activate
 ```
 
 ### Step 3: Install Application Dependencies
@@ -70,11 +70,11 @@ run.bat
 If you prefer manual installation:
 
 ```bash
-# Activate venv
-C:\Windows\System32\venv\Scripts\activate
-
 # Navigate to project
 cd C:\Whisper_project
+
+# Activate venv
+venv\Scripts\activate
 
 # Install GUI framework
 pip install PySide6>=6.6.0
@@ -174,7 +174,7 @@ pip install whisperx
 ## 📁 File Locations
 
 - **Project**: `C:\Whisper_project\`
-- **Virtual Environment**: `C:\Windows\System32\venv\`
+- **Virtual Environment**: `C:\Whisper_project\venv\`
 - **App Data**: `%USERPROFILE%\.cloudcall\`
 - **Models**: `%USERPROFILE%\.cloudcall\models\`
 - **Logs**: `%USERPROFILE%\.cloudcall\app.log`

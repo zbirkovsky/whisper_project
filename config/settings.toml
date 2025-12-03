@@ -11,10 +11,10 @@ organization = "CloudCall"
 
 [transcription]
 # Whisper model: tiny, base, small, medium, large-v2, large-v3, large-v3-turbo
-whisper_model = "base"  # Smaller model for CPU usage
-compute_type = "int8"  # CPU-optimized compute type
-batch_size = 4  # Lower batch size for CPU
-device = "cpu"  # CPU mode (no CUDA GPU available)
+whisper_model = "base"
+compute_type = "float16"  # GPU-optimized compute type (use "int8" for CPU)
+batch_size = 16  # Higher batch size for GPU (use 4 for CPU)
+device = "cuda"  # GPU mode (use "cpu" if no CUDA GPU available)
 language = "en"  # ENGLISH ONLY for bulletproof accuracy (en=English, cs=Czech, auto=detect)
 
 # Language-specific models for optimal quality

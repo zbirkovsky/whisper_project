@@ -30,6 +30,7 @@ toml>=0.10.2
 
 # Utilities
 tqdm>=4.65.0
+deep_translator>=1.11.0
 
 # Windows Integration
 pywin32>=306

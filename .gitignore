@@ -40,3 +40,9 @@ models/
 
 # PyInstaller
 *.spec.lock
+
+# CUDA libraries (downloaded separately)
+cuda*_libs/
+*.7z
+cublas*.dll
+cudnn*.dll
